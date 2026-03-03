@@ -4,8 +4,8 @@ with open("README.md", "r", encoding="utf-8") as fh:
     long_description = fh.read()
 
 setup(
-    name="kishi",
-    version="1.6.0",
+    name="kishi-shell",
+    version="1.6.1",
     author="Ozhan Gebesoglu",
     author_email="ozhan@example.com",
     description="A powerful, highly modular, Python-based modern shell.",
