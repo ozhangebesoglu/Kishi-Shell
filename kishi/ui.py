@@ -10,7 +10,7 @@ from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
 from .state import COLOR_AMBER, COLOR_RESET, COLOR_RED, COLOR_YELLOW, COLOR_CYAN
-from .state import SYSTEM_COMMANDS, BUILTINS, ALIASES
+import kishi.state
 
 kishi_style = Style.from_dict({
     'command.valid': 'ansigreen bold',
@@ -42,7 +42,7 @@ class KishiLexer(Lexer):
                     result.append(('class:command.valid', word))
                 elif i == 0 or (i > 0 and words[i-1] in ('|', '&&', '||', ';', 'then', 'do', 'else', 'elif')):
                     clean_word = word.strip()
-                    if clean_word in BUILTINS or clean_word in SYSTEM_COMMANDS or clean_word in ALIASES:
+                    if clean_word in kishi.state.BUILTINS or clean_word in kishi.state.SYSTEM_COMMANDS or clean_word in kishi.state.ALIASES:
                         result.append(('class:command.valid', word))
                     elif os.path.exists(clean_word) or clean_word.startswith("./") or clean_word.startswith("~/"):
                         result.append(('class:command.valid', word))
@@ -82,10 +82,10 @@ class KishiCompleter(Completer):
         if is_first_word:
             text_lower = word_before_cursor.lower()
             if not '/' in word_before_cursor and word_before_cursor.strip() != "":
-                for c in SYSTEM_COMMANDS:
+                for c in kishi.state.SYSTEM_COMMANDS:
                     if c.lower().startswith(text_lower):
                         yield Completion(c, start_position=-len(word_before_cursor))
-            for b in BUILTINS.keys():
+            for b in kishi.state.BUILTINS.keys():
                 if b.lower().startswith(text_lower):
                     yield Completion(b, start_position=-len(word_before_cursor))
 
@@ -155,7 +155,6 @@ def get_prompts():
     return left_prompt, right_prompt
 
 def get_bottom_toolbar():
-    import kishi.state
     if kishi.state.KISHI_SESSION:
         text = kishi.state.KISHI_SESSION.default_buffer.text
         words = text.split()
@@ -179,5 +178,5 @@ def init_prompt_toolkit():
         style=kishi_style,
         key_bindings=kishi_bindings,
         bottom_toolbar=get_bottom_toolbar,
-        complete_while_typing=False
+        complete_while_typing=True
     )
