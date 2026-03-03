@@ -44,7 +44,7 @@ def load_rc_file():
         print(f"Uyarı: .kishirc okunamadı - {e}")
 
 def main():
-    state.BUILTINS = BUILTINS_DICT
+    state.BUILTINS.update(BUILTINS_DICT)
     
     if len(sys.argv) > 2 and sys.argv[1] == "-c":
         state.load_system_commands()
