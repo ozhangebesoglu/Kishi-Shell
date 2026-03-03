@@ -62,4 +62,6 @@ Projeyi çatallayıp (Fork) yeni özellikler ekleyebilir ve Pull Request gönder
 `kishi/` modül dizinindeki `lexer.py`, `parser.py` veya `executor.py` bloklarını geliştirerek çekirdek motoru iyileştirebilirsiniz.
 
 ## Lisans
-MIT License - Özgürce kullanın, kopyalayın ve geliştirin.
+GNU General Public License v3.0 (GPL-3.0)
+
+Kishi Shell açık kaynaklı ve özgür bir yazılımdır. Bu lisans kapsamında, kodu kopyalamakta, değiştirmekte ve dağıtmakta özgürsünüz. **Ancak Kishi Shell kaynak kodlarını kullanarak geliştirdiğiniz veya değiştirdiğiniz her türlü türev yazılımı (derivative work) yine açık kaynaklı (GPL-3.0) olarak topluluğa sunmak zorundasınız.** Kapalı kaynaklı ticari ürünlerde kullanılamaz.
