@@ -261,6 +261,70 @@ def kishi_test(args):
     print("test: hatali argumanlar")
     return 1
 
+def kishi_deactivate(args):
+    if "VIRTUAL_ENV" in os.environ:
+        venv_bin = os.path.join(os.environ["VIRTUAL_ENV"], "bin")
+        if "PATH" in os.environ:
+            path_list = os.environ["PATH"].split(os.pathsep)
+            if venv_bin in path_list:
+                path_list.remove(venv_bin)
+                os.environ["PATH"] = os.pathsep.join(path_list)
+        
+        if "_OLD_VIRTUAL_PATH" in os.environ:
+            os.environ["PATH"] = os.environ["_OLD_VIRTUAL_PATH"]
+            del os.environ["_OLD_VIRTUAL_PATH"]
+            
+        del os.environ["VIRTUAL_ENV"]
+        print(f"{COLOR_GREEN}Virtual environment deactivated.{COLOR_RESET}")
+    else:
+        print("Herhangi bir sanal ortam (venv) aktif değil.")
+    return 0
+
+def kishi_source(args):
+    if len(args) < 1:
+        print("source: dosya adı gerekli (Örn: source venv/bin/activate)")
+        return 1
+        
+    script_path = args[0]
+    if not os.path.exists(script_path):
+        print(f"{COLOR_RED}source hatası:{COLOR_RESET} '{script_path}' bulunamadı.")
+        return 1
+        
+    try:
+        import subprocess
+        # Bash üzerinde source yapıp ortam değişkenlerini okuyoruz
+        env_cmd = f"source {script_path} && env && echo '---KISHI_SEP---' && alias"
+        result = subprocess.run(['bash', '-c', env_cmd], capture_output=True, text=True)
+        if result.returncode != 0:
+            print(f"{COLOR_RED}KS source hatası:{COLOR_RESET} Bash scripti işlenemedi.")
+            return result.returncode
+            
+        parts = result.stdout.split('---KISHI_SEP---')
+        env_output = parts[0]
+        alias_output = parts[1] if len(parts) > 1 else ""
+        
+        for line in env_output.splitlines():
+            line = line.strip()
+            if not line: continue
+            if '=' in line:
+                key, val = line.split('=', 1)
+                # Kishi ortamına aktar
+                os.environ[key] = val
+                
+        for line in alias_output.splitlines():
+            line = line.strip()
+            if line.startswith("alias "):
+                line = line[6:]
+                if '=' in line:
+                    k, v = line.split('=', 1)
+                    ALIASES[k] = v.strip("'").strip('"')
+                    
+        print(f"{COLOR_CYAN}[+]{COLOR_RESET} '{script_path}' Kishi ortamına yüklendi.")
+    except Exception as e:
+        print(f"{COLOR_RED}source işleminde sistem hatası:{COLOR_RESET} {e}")
+        return 1
+    return 0
+
 # Export dictionary for main initializer
 BUILTINS_DICT = {
     "[": kishi_test,
@@ -276,5 +340,8 @@ BUILTINS_DICT = {
     "fg": kishi_fg,
     "bg": kishi_bg,
     "export": kishi_export,
-    "unset": kishi_unset
+    "unset": kishi_unset,
+    "source": kishi_source,
+    ".": kishi_source,
+    "deactivate": kishi_deactivate
 }

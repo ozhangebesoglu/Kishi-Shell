@@ -138,7 +138,12 @@ def get_prompts():
             display_cwd = "..." + display_cwd[-(term_width - 20):]
     except: pass
         
-    left_prompt = ANSI(f"{COLOR_AMBER}Kishi$ ->{COLOR_RESET} ")
+    venv_prompt = ""
+    if "VIRTUAL_ENV" in os.environ:
+        venv_name = os.path.basename(os.environ["VIRTUAL_ENV"])
+        venv_prompt = f"{COLOR_CYAN}({venv_name}){COLOR_RESET} "
+
+    left_prompt = ANSI(f"{venv_prompt}{COLOR_AMBER}Kishi$ ->{COLOR_RESET} ")
     
     git_branch = ""
     try:
