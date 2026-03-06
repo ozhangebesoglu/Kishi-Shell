@@ -281,11 +281,11 @@ def kishi_deactivate(args):
     return 0
 
 def kishi_source(args):
-    if len(args) < 1:
+    if len(args) < 2:
         print("source: dosya adı gerekli (Örn: source venv/bin/activate)")
         return 1
         
-    raw_path = args[0].strip().strip("'").strip('"')
+    raw_path = args[1].strip().strip("'").strip('"')
     
     # Try multiple path resolutions
     path_candidates = [
