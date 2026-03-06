@@ -285,7 +285,8 @@ def kishi_source(args):
         print("source: dosya adı gerekli (Örn: source venv/bin/activate)")
         return 1
         
-    script_path = args[0]
+    script_path = args[0].strip().strip("'").strip('"')
+    script_path = os.path.abspath(os.path.expanduser(script_path))
     if not os.path.exists(script_path):
         print(f"{COLOR_RED}source hatası:{COLOR_RESET} '{script_path}' bulunamadı.")
         return 1
