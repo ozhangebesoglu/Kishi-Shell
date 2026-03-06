@@ -285,10 +285,24 @@ def kishi_source(args):
         print("source: dosya adı gerekli (Örn: source venv/bin/activate)")
         return 1
         
-    script_path = args[0].strip().strip("'").strip('"')
-    script_path = os.path.abspath(os.path.expanduser(script_path))
-    if not os.path.exists(script_path):
-        print(f"{COLOR_RED}source hatası:{COLOR_RESET} '{script_path}' bulunamadı.")
+    raw_path = args[0].strip().strip("'").strip('"')
+    
+    # Try multiple path resolutions
+    path_candidates = [
+        raw_path,
+        os.path.expanduser(raw_path),
+        os.path.abspath(os.path.expanduser(raw_path)),
+        os.path.join(os.getcwd(), raw_path)
+    ]
+    
+    script_path = None
+    for p in path_candidates:
+        if os.path.exists(p):
+            script_path = p
+            break
+            
+    if not script_path:
+        print(f"{COLOR_RED}source hatası:{COLOR_RESET} '{raw_path}' bulunamadı.")
         return 1
         
     try:
