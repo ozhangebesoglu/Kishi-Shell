@@ -106,14 +106,11 @@ def _(event):
         with open(history_file, 'r') as f:
             lines = f.readlines()
         unique_lines = list(dict.fromkeys(reversed([l.strip() for l in lines if l.strip()])))
-        process = subprocess.Popen(
-            ['fzf', '--height=40%', '--reverse', '--prompt=History> '],
-            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
-            stderr=open(os.devnull, 'w'), text=True
-        )
-        stdout, _ = process.communicate("\n".join(unique_lines))
-        if process.returncode == 0 and stdout:
-            selected = stdout.strip()
+        
+        from .tui_fuzzy import run_fuzzy_history
+        selected = run_fuzzy_history(unique_lines)
+        
+        if selected:
             event.app.current_buffer.text = selected
             event.app.current_buffer.cursor_position = len(selected)
     except: pass

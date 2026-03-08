@@ -5,6 +5,15 @@ from prompt_toolkit.shortcuts import clear
 
 from .state import COLOR_AMBER, COLOR_RED, COLOR_YELLOW, COLOR_GREEN, COLOR_RESET, COLOR_CYAN, LOCAL_VARS, ALIASES
 from .job_control import JobManager
+try:
+    from .tui_dashboard import kishi_dashboard
+except ImportError:
+    kishi_dashboard = None
+
+try:
+    from .tui_explorer import kishi_explore
+except ImportError:
+    kishi_explore = None
 
 def kishi_cd(args):
     if len(args) < 2:
@@ -358,5 +367,7 @@ BUILTINS_DICT = {
     "unset": kishi_unset,
     "source": kishi_source,
     ".": kishi_source,
-    "deactivate": kishi_deactivate
+    "deactivate": kishi_deactivate,
+    "dashboard": kishi_dashboard,
+    "explore": kishi_explore
 }

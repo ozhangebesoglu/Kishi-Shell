@@ -5,7 +5,7 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="kishi-shell",
-    version="1.6.5",
+    version="1.7.0",
     author="Ozhan Gebesoglu",
     author_email="ozhan@example.com",
     description="A powerful, highly modular, Python-based modern shell.",
@@ -22,6 +22,7 @@ setup(
     python_requires=">=3.8",
     install_requires=[
         "prompt_toolkit>=3.0.0",
+        "psutil>=5.0.0"
     ],
     entry_points={
         "console_scripts": [
