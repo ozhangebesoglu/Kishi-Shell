@@ -47,11 +47,12 @@ def get_gpu_info():
 
 def get_cpu_info():
     text = []
-    cpu = psutil.cpu_percent(interval=None)
+    # Using small interval to smooth out CPU chunks but keep it mostly non-blocking
+    cpu = psutil.cpu_percent(interval=0.1)
     text.append(("class:label", " Total: "))
     text.extend(generate_bar(cpu, width=12))
     text.append(("", "\n\n"))
-    cores = psutil.cpu_percent(interval=None, percpu=True)
+    cores = psutil.cpu_percent(interval=0.1, percpu=True)
     for i, c in enumerate(cores[:8]):
         text.append(("class:label", f" C{i:<2}: "))
         text.extend(generate_bar(c, width=13))
@@ -174,6 +175,11 @@ def kishi_dashboard(args):
         except Exception as e:
             new_text += f"Hata: {e}\n"
             
+        # Limit output buffer length to prevent UI lag from massive text blocks
+        lines = new_text.split('\n')
+        if len(lines) > 50:
+            new_text = "\n".join(lines[-50:])
+            
         output_buffer.document = Document(
             text=new_text,
             cursor_position=len(new_text)
@@ -193,13 +199,13 @@ def kishi_dashboard(args):
         key_bindings=kb,
         style=style,
         full_screen=True,
-        refresh_interval=1.0,
+        refresh_interval=2.5,
         mouse_support=True
     )
     
     def update_loop():
         while app.is_running:
-            time.sleep(1)
+            time.sleep(2.5)
             try:
                 app.invalidate()
             except: pass

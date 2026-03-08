@@ -105,7 +105,20 @@ async def _(event):
     try:
         with open(history_file, 'r') as f:
             lines = f.readlines()
-        unique_lines = list(dict.fromkeys(reversed([l.strip() for l in lines if l.strip()])))
+            
+        parsed_commands = []
+        for l in lines:
+            l = l.strip()
+            if not l or l.startswith('#'):
+                continue
+            if l.startswith('+'):
+                cmd = l[1:]
+                if cmd:
+                    parsed_commands.append(cmd)
+            else:
+                parsed_commands.append(l)
+                
+        unique_lines = list(dict.fromkeys(reversed(parsed_commands)))
         
         from .tui_fuzzy import run_fuzzy_history
         selected = await run_fuzzy_history(unique_lines)
