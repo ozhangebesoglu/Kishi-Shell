@@ -247,7 +247,7 @@ def kishi_explore(args):
         key_bindings=kb,
         style=style,
         full_screen=True,
-        editing_mode=EditingMode.VI
+        editing_mode=EditingMode.EMACS
     )
     
     try:

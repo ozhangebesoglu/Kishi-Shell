@@ -19,7 +19,7 @@ Stop reading files in a plain black screen.
 - **Command:** `explore` (or shortcut **`Ctrl + E`**)
 Kishi splits the screen into two. On the left, it generates a smart **Directory Tree** that you can navigate using arrow keys (It automatically identifies Python, Text, and Media files with `[PY]`, `[TXT]`, `[VID]` tags).
 - If you hover over a file and press **`Tab`**, the right panel instantly transforms into a **Fully Functional Text Editor** powered by `prompt_toolkit`.
-- Since version 1.8.0, the editor natively supports `Vi` keybindings! Press `i` to enter Insert mode, write your code, view Vim-style line numbers on the left margin, and press `Esc` to return to Normal Mode. 
+- The editor works right out of the box! You can instantly type, write your code, and view line numbers on the left margin. Standard keyboard mappings intuitively apply natively.
 - You can save your edits instantly using **`Ctrl + S`** and quit the interface by pressing **`Q`**.
 
 ### 2-) System Monitor (Dashboard)
