@@ -12,15 +12,17 @@ from prompt_toolkit.layout.margins import NumberedMargin
 from prompt_toolkit.enums import EditingMode
 
 def get_explorer_icon(path, filename):
-    if os.path.isdir(path): return "[DIR ]"
+    if os.path.isdir(path): return "📁"
     ext = os.path.splitext(filename)[1].lower()
-    if ext == ".py": return "[PY  ]"
-    if ext in (".txt", ".md", ".json", ".yaml", ".yml", ".ini", ".cfg"): return "[TXT ]"
-    if ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".bmp"): return "[IMG ]"
-    if ext in (".mp3", ".wav", ".ogg", ".flac"): return "[AUD ]"
-    if ext in (".mp4", ".mkv", ".avi", ".webm"): return "[VID ]"
-    if ext in (".zip", ".tar", ".gz", ".rar", ".7z"): return "[ARCH]"
-    return "[FILE]"
+    if ext == ".py": return "🐍"
+    if ext == ".go": return "🐹"
+    if ext in (".js", ".ts", ".jsx", ".tsx"): return "📜"
+    if ext in (".txt", ".md", ".json", ".yaml", ".yml", ".ini", ".cfg"): return "📝"
+    if ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".bmp"): return "🖼️"
+    if ext in (".mp3", ".wav", ".ogg", ".flac"): return "🎵"
+    if ext in (".mp4", ".mkv", ".avi", ".webm"): return "🎥"
+    if ext in (".zip", ".tar", ".gz", ".rar", ".7z"): return "📦"
+    return "📄"
 
 class KishiExplorer:
     def __init__(self, start_dir=".", editor_buffer=None):
@@ -119,14 +121,14 @@ class KishiExplorer:
             style = "class:selected" if i == self.selected_index else ""
             
             if f == "..":
-                icon = "[UP  ] "
+                icon = "🔙 "
             else:
                 icon = get_explorer_icon(os.path.join(self.current_dir, f), f) + " "
             
             if style:
                 result.append((style, prefix + icon + f + "\n"))
             else:
-                if "[DIR" in icon or "[UP" in icon:
+                if "📁" in icon or "🔙" in icon:
                     result.append(("class:dir", prefix + icon + f + "\n"))
                 else:
                     result.append(("", prefix + icon + f + "\n"))
