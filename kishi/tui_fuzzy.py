@@ -42,7 +42,7 @@ def run_fuzzy_history(history_lines):
         limit = min(20, len(state["filtered"]))
         
         if limit == 0:
-            return [("class:invalid", "  Hiçbir eşleşme bulunamadı.")]
+            return [("class:invalid", "  No matches found.")]
             
         for i in range(limit):
             line = state["filtered"][i]
@@ -58,11 +58,11 @@ def run_fuzzy_history(history_lines):
     results_window = Window(content=FormattedTextControl(text=get_results_text))
     
     search_bar = VSplit([
-        Window(width=9, content=FormattedTextControl(text=[("class:prompt", " Arama> ")])),
+        Window(width=9, content=FormattedTextControl(text=[("class:prompt", " Search> ")])),
         Window(content=BufferControl(buffer=search_buffer))
     ])
     
-    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " [SEARCH] Kishi Tarihçe (Fuzzy Search) | [Enter] Komutu Seç | [Esc] İptal ")]))
+    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " [SEARCH] Kishi Fuzzy History | [Enter] Select Command | [Esc] Cancel ")]))
     
     layout = Layout(HSplit([
         header,

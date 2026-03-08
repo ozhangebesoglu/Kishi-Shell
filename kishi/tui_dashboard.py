@@ -26,7 +26,7 @@ def generate_bar(percentage, width=15):
         ("", f" {percentage:5.1f}%")
     ]
 
-gpu_text_cache = [("class:invalid", "\n Yükleniyor...\n")]
+gpu_text_cache = [("class:invalid", "\n Loading...\n")]
 cpu_text_cache = []
 ram_text_cache = []
 net_text_cache = []
@@ -52,9 +52,9 @@ def fetch_system_background():
                 ("class:label", " VRAM Totl: "), ("", f"{parts[4]}\n"),
             ]
         else:
-            gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi bulunamadı)\n")]
+            gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi not found)\n")]
     except:
-        gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi bulunamadı)\n")]
+        gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi not found)\n")]
 
     # --- CPU FETCH ---
     c_text = []
@@ -72,12 +72,12 @@ def fetch_system_background():
     # --- RAM FETCH ---
     r_text = []
     vmem = psutil.virtual_memory()
-    r_text.append(("class:label", " RAM Kullanım:\n "))
+    r_text.append(("class:label", " RAM Usage:\n "))
     r_text.extend(generate_bar(vmem.percent, width=18))
     r_text.append(("", f"\n {vmem.used / (1024**3):.1f} GB / {vmem.total / (1024**3):.1f} GB\n\n"))
     
     swap = psutil.swap_memory()
-    r_text.append(("class:label", " SWAP Kullanım:\n "))
+    r_text.append(("class:label", " SWAP Usage:\n "))
     r_text.extend(generate_bar(swap.percent, width=18))
     r_text.append(("", f"\n {swap.used / (1024**3):.1f} GB / {swap.total / (1024**3):.1f} GB\n"))
     ram_text_cache = r_text
@@ -93,7 +93,7 @@ def fetch_system_background():
     
     try:
         curr_net = psutil.net_io_counters()
-        n_text.append(("class:label", " Ağ Trafiği (Network):\n"))
+        n_text.append(("class:label", " Network Traffic:\n"))
         
         down_speed = 0
         up_speed = 0
@@ -130,15 +130,14 @@ def kishi_dashboard(args):
         Frame(Window(content=FormattedTextControl(text=get_net_info)), title="[ Storage & Net ]")
     ], width=28)
     
-    # Merkez (Terminal & Input)
     output_buffer = Buffer(multiline=True)
-    output_buffer.text = " [KISHI] Kishi Shell Dashboard Command Center\n =====================================\n - Normal shell'e dönmek için 'exit' veya 'q' yazın.\n - Komut çalıştırabilirsiniz (Basit read-only komutlar pty gerektirmez).\n\n"
+    output_buffer.text = " [KISHI] Kishi Shell Dashboard Command Center\n =====================================\n - Type 'exit' or 'q' to return to normal shell.\n - You can execute fast read-only commands here.\n\n"
     
     input_buffer = Buffer(multiline=False)
     
     center_col = HSplit([
-        Frame(Window(content=BufferControl(buffer=output_buffer, focusable=False), wrap_lines=True), title="[ Kishi Terminal Ekranı ]"),
-        Frame(Window(content=BufferControl(buffer=input_buffer), height=1), title="[ Komut Satırı ]", style="class:input_frame")
+        Frame(Window(content=BufferControl(buffer=output_buffer, focusable=False), wrap_lines=True), title="[ Kishi Terminal ]"),
+        Frame(Window(content=BufferControl(buffer=input_buffer), height=1), title="[ Command Line ]", style="class:input_frame")
     ])
     
     body = VSplit([
@@ -147,7 +146,7 @@ def kishi_dashboard(args):
         right_col
     ])
     
-    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Komut Çalıştır | [Ctrl+C] Çıkış ")]))
+    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute Command | [Ctrl+C] Quit ")]))
     layout = Layout(HSplit([header, body]), focused_element=input_buffer)
     
     kb = KeyBindings()
@@ -174,14 +173,14 @@ def kishi_dashboard(args):
                 target = cmd.split(" ", 1)[1]
                 path = os.path.expanduser(target)
                 os.chdir(path)
-                new_text += f"[DIR] Dizin değiştirildi: {os.getcwd()}\n"
+                new_text += f"[DIR] Directory changed: {os.getcwd()}\n"
             elif cmd == "clear":
                 new_text = ""
             else:
                 out = subprocess.getoutput(cmd)
                 new_text += out + "\n"
         except Exception as e:
-            new_text += f"Hata: {e}\n"
+            new_text += f"Error: {e}\n"
             
         # Limit output buffer length to prevent UI lag from massive text blocks
         lines = new_text.split('\n')

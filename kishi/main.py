@@ -13,7 +13,7 @@ def load_rc_file():
     if not os.path.exists(rc_path):
         try:
             with open(rc_path, "w") as f:
-                f.write("# Kishi Shell Baslangic Dosyasi\n")
+                f.write("# Kishi Shell Initialization File\n")
                 f.write("alias ll='ls -la'\n")
                 f.write("alias h='history'\n")
         except: pass
@@ -41,7 +41,7 @@ def load_rc_file():
                         val = re.sub(r'\$([A-Za-z0-9_]+)', replacer, val)
                         os.environ[name] = val
     except Exception as e:
-        print(f"Uyarı: .kishirc okunamadı - {e}")
+        print(f"Warning: Could not read .kishirc - {e}")
 
 def main():
     state.BUILTINS.update(BUILTINS_DICT)
@@ -66,12 +66,12 @@ def main():
     try:
         state.KISHI_SESSION = init_prompt_toolkit()
     except Exception as e:
-        print("prompt_toolkit yuklenemedi:", e)
+        print("Failed to load prompt_toolkit:", e)
         
     load_rc_file()
     
-    print(f"{state.COLOR_AMBER}Kishi Shell Gelişmiş Sürüm (v1.6 SOLID){state.COLOR_RESET}")
-    print("Yardım için 'help' yazabilirsiniz.")
+    print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v1.7){state.COLOR_RESET}")
+    print("Type 'help' for the command guide.")
 
     while True:
         try:
@@ -88,7 +88,7 @@ def main():
             process_command_line(cmd_line)
             
         except EOFError:
-            print(f"\n{state.COLOR_AMBER}Kishi:{state.COLOR_RESET} Çıkış sinyali alındı. Hoşça kal!")
+            print(f"\n{state.COLOR_AMBER}Kishi:{state.COLOR_RESET} Exit signal received. Goodbye!")
             break
         except KeyboardInterrupt:
             print()

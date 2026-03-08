@@ -23,11 +23,11 @@ def kishi_cd(args):
     try:
         os.chdir(hedef)
     except FileNotFoundError:
-        print(f"{COLOR_RED}İşletim Sistemi Hatası:{COLOR_RESET} '{hedef}' isimli dizin bulunamadı.")
+        print(f"{COLOR_RED}OS Error:{COLOR_RESET} Directory '{hedef}' not found.")
     except NotADirectoryError:
-        print(f"{COLOR_RED}İşletim Sistemi Hatası:{COLOR_RESET} '{hedef}' bir dizin değil.")
+        print(f"{COLOR_RED}OS Error:{COLOR_RESET} '{hedef}' is not a directory.")
     except PermissionError:
-        print(f"{COLOR_RED}Erişim Reddedildi:{COLOR_RESET} '{hedef}' dizinine girmek için yetkiniz yok.")
+        print(f"{COLOR_RED}Access Denied:{COLOR_RESET} No permission to enter '{hedef}'.")
     return 0
 
 def kishi_pwd(args):
@@ -35,7 +35,7 @@ def kishi_pwd(args):
     return 0
 
 def kishi_exit(args):
-    print(f"\n{COLOR_AMBER}Kishi:{COLOR_RESET} Güvenli şekilde çıkılıyor. Hoşça kal!")
+    print(f"\n{COLOR_AMBER}Kishi:{COLOR_RESET} Exiting safely. Goodbye!")
     sys.exit(0)
 
 def kishi_clear(args):
@@ -43,40 +43,40 @@ def kishi_clear(args):
     return 0
 def kishi_help(args):
     help_text = f"""
-{COLOR_AMBER}Kishi Shell Gelişmiş Sürüm (v1.7) - KULLANIM REHBERİ{COLOR_RESET}
+{COLOR_AMBER}Kishi Shell Advanced (v1.7) - USER GUIDE{COLOR_RESET}
 
-📚 TEMEL KOMUTLAR:
-  cd <dizin>     : Dizin değiştirir. (Örn: cd /home, cd ..)
-  pwd            : Mevcut dizinin tam yolunu yazdırır.
-  clear          : Terminal ekranını temizler. (Kısayol: Ctrl + L)
-  exit / q       : Kishi Shell'den çıkış yapar.
+[BASIC COMMANDS]:
+  cd <dir>       : Changes the directory. (Ex: cd /home, cd ..)
+  pwd            : Prints the absolute path of the current directory.
+  clear          : Clears the terminal screen. (Shortcut: Ctrl + L)
+  exit / q       : Exits Kishi Shell.
 
-🔥 İLERİ DÜZEY TUI (GÖRSEL ARAYÜZLER):
-  explore        : (Çift Panelli IDE) Dosya Yöneticisine girer. 
-                   Klasörlerde gezip sağdaki editörde anında kod yazabilirsiniz.
-  dashboard      : Sistem Monitörünü (CPU/RAM/GPU/Ağ) tam ekran açar.
+[ADVANCED TUI INTERFACES]:
+  explore        : Opens the dual-pane IDE File Explorer.
+                   You can navigate folders and edit code directly in the right pane.
+  dashboard      : Opens the full-screen System Monitor (CPU/RAM/GPU/Net/Disk).
 
-⌨️  ÖZEL KISAYOLLAR:
-  [Ctrl + R]     : (Tarihçe Araması) Eski yazdığınız komutları aratıp seçebilirsiniz.
-  [Ctrl + E]     : 'explore' komutunu çalıştırarak File Explorer GUI'yi açar.
-  [Ctrl + L]     : Ekranı temizler.
-  [Tab / Esc]    : File Explorer'dayken Dosya Ağacı ile Editör arasında odak (focus) değiştirir.
-  [Ctrl + S]     : File Explorer editöründeyken yazdığınız metni kaydeder.
+[SPECIAL SHORTCUTS]:
+  [Ctrl + R]     : Fuzzy Search History. Find old commands by typing to filter.
+  [Ctrl + E]     : Instantly opens the 'explore' File Explorer GUI.
+  [Ctrl + L]     : Clears the screen.
+  [Tab / Esc]    : Switches focus between the Directory Tree and the Editor pane.
+  [Ctrl + S]     : Saves your text file while inside the Explorer IDE.
 
-💻 ORTAM DEĞİŞKENLERİ & SCRIPTING:
-  export X=1     : Sistemin kalıcı çevre değişkenini ayarlar. (Örn: export PATH=/opt:$PATH)
-  unset X        : Atanmış bir değişkeni hafızadan tamamen siler.
+[ENVIRONMENT & SCRIPTING]:
+  export X=1     : Sets a persistent environment variable. (Ex: export PATH=/opt:$PATH)
+  unset X        : Removes an assigned variable completely from memory.
 
-⚙️  FONKSİYON TANIMLAMA (myfunc):
-  Tekrarlayan işleriniz için kendi komutlarınızı icat edebilirsiniz:
-  Örnek: 
-    Kishi$ -> merhaba() {{ echo "Sisteme hosgeldin $USER"; ls; }}
-    Kishi$ -> merhaba
-    Sisteme hosgeldin ozhangebesoglu
-    (klasördeki dosyalar listelenir)
+[CUSTOM FUNCTIONS (myfunc)]:
+  Create custom sub-routines for repetitive tasks:
+  Example: 
+    Kishi$ -> hello() {{ echo "Welcome to the system $USER"; ls -l; }}
+    Kishi$ -> hello
+    Welcome to the system ozhangebesoglu
+    (lists the files in the directory)
 """
     if len(args) > 1 and args[1] == "less":
-        print(f"{COLOR_AMBER}KISAYOLLAR:{COLOR_RESET} Ctrl+R (Arama), Ctrl+E (Explorer) | {COLOR_CYAN}KOMUTLAR:{COLOR_RESET} dashboard, explore, export X=1, func() {{}}")
+        print(f"{COLOR_AMBER}SHORTCUTS:{COLOR_RESET} Ctrl+R (Fuzzy Search), Ctrl+E (Explorer) | {COLOR_CYAN}COMMANDS:{COLOR_RESET} dashboard, explore, export X=y, func() {{}}")
     else:
         print(help_text)
     return 0
@@ -84,7 +84,7 @@ def kishi_help(args):
 def kishi_history(args):
     from .state import KISHI_SESSION
     if not KISHI_SESSION:
-        print(f"{COLOR_YELLOW}Sistem Bilgisi:{COLOR_RESET} 'prompt_toolkit' modülü yüklü değil, geçmiş gösterilemiyor.")
+        print(f"{COLOR_YELLOW}System Info:{COLOR_RESET} 'prompt_toolkit' is not installed, history is unavailable.")
         return 1
     
     strings = KISHI_SESSION.history.get_strings()
@@ -111,16 +111,16 @@ def kishi_fg(args):
     
     if len(args) > 1:
         try: job_id = int(args[1])
-        except: print("Hatalı job ids"); return 1
+        except: print("Invalid job id"); return 1
     else:
         if not JobManager.jobs:
-            print("Arka planda iş yok")
+            print("No jobs in background")
             return 1
         job_id = max(JobManager.jobs.keys()) if dict_mode else JobManager.jobs[-1].job_id
         
     job = JobManager.jobs.get(job_id) if dict_mode else JobManager.get_job(job_id)
     if not job:
-        print("İş bulunamadı")
+        print("Job not found")
         return 1
         
     print(f"{job.cmd_str}")
@@ -148,7 +148,7 @@ def kishi_fg(args):
                 if os.WIFSTOPPED(status):
                     job.status = "Stopped"
                     job.is_background = True
-                    print(f"\n{COLOR_YELLOW}[{job.job_id}]+  Durduruldu{COLOR_RESET}      {job.cmd_str}")
+                    print(f"\n{COLOR_YELLOW}[{job.job_id}]+  Stopped{COLOR_RESET}      {job.cmd_str}")
                     break
                 else:
                     last_status = os.waitstatus_to_exitcode(status)
@@ -159,7 +159,7 @@ def kishi_fg(args):
             JobManager.remove_job(job.job_id)
             
     except Exception as e:
-        print("fg hatası:", e)
+        print("fg error:", e)
     finally:
         try: os.tcsetpgrp(shell_tty, old_pgrp)
         except: pass
@@ -172,10 +172,10 @@ def kishi_bg(args):
     
     if len(args) > 1:
         try: job_id = int(args[1])
-        except: print("Hatalı job ids"); return 1
+        except: print("Invalid job id"); return 1
     else:
         if not JobManager.jobs:
-            print("Durdurulmuş iş yok")
+            print("No stopped jobs")
             return 1
             
         jobs_list = sorted(JobManager.jobs.keys(), reverse=True) if dict_mode else reversed(JobManager.jobs)
@@ -185,12 +185,12 @@ def kishi_bg(args):
                 job_id = tj.job_id
                 break
         if job_id == -1:
-            print("Durdurulmuş iş yok")
+            print("No stopped jobs")
             return 1
             
     job = JobManager.jobs.get(job_id) if dict_mode else JobManager.get_job(job_id)
     if not job:
-        print("İş bulunamadı")
+        print("Job not found")
         return 1
         
     if job.status == "Stopped":
@@ -199,7 +199,7 @@ def kishi_bg(args):
         print(f"[{job.job_id}]+ {job.cmd_str} &")
         os.killpg(job.pgid, signal.SIGCONT)
     else:
-        print(f"Kishi: job {job_id} zaten arka planda çalışıyor")
+        print(f"Kishi: job {job_id} is already in background")
         
     return 0
 
@@ -227,7 +227,7 @@ def kishi_export(args):
 
 def kishi_unset(args):
     if len(args) < 2:
-        print("unset: parametre eksik")
+        print("unset: missing parameter")
         return 1
         
     for arg in args[1:]:
@@ -244,7 +244,7 @@ def kishi_test(args):
         if args[-1] == ']':
             args = args[1:-1]
         else:
-            print("test: kosesiz parantez kapatilmamis")
+            print("test: missing closing bracket")
             return 1
     elif args[0] == 'test':
         args = args[1:]
@@ -277,7 +277,7 @@ def kishi_test(args):
     if len(args) == 1:
         return 0 if args[0] else 1
         
-    print("test: hatali argumanlar")
+    print("test: invalid arguments")
     return 1
 
 def kishi_deactivate(args):
@@ -296,12 +296,12 @@ def kishi_deactivate(args):
         del os.environ["VIRTUAL_ENV"]
         print(f"{COLOR_GREEN}Virtual environment deactivated.{COLOR_RESET}")
     else:
-        print("Herhangi bir sanal ortam (venv) aktif değil.")
+        print("No virtual environment (venv) is active.")
     return 0
 
 def kishi_source(args):
     if len(args) < 2:
-        print("source: dosya adı gerekli (Örn: source venv/bin/activate)")
+        print("source: filename required (Ex: source venv/bin/activate)")
         return 1
         
     raw_path = args[1].strip().strip("'").strip('"')
@@ -321,7 +321,7 @@ def kishi_source(args):
             break
             
     if not script_path:
-        print(f"{COLOR_RED}source hatası:{COLOR_RESET} '{raw_path}' bulunamadı.")
+        print(f"{COLOR_RED}source error:{COLOR_RESET} '{raw_path}' not found.")
         return 1
         
     try:
@@ -330,7 +330,7 @@ def kishi_source(args):
         env_cmd = f"source {script_path} && env && echo '---KISHI_SEP---' && alias"
         result = subprocess.run(['bash', '-c', env_cmd], capture_output=True, text=True)
         if result.returncode != 0:
-            print(f"{COLOR_RED}KS source hatası:{COLOR_RESET} Bash scripti işlenemedi.")
+            print(f"{COLOR_RED}KS source error:{COLOR_RESET} Failed to process bash script.")
             return result.returncode
             
         parts = result.stdout.split('---KISHI_SEP---')
@@ -353,9 +353,9 @@ def kishi_source(args):
                     k, v = line.split('=', 1)
                     ALIASES[k] = v.strip("'").strip('"')
                     
-        print(f"{COLOR_CYAN}[+]{COLOR_RESET} '{script_path}' Kishi ortamına yüklendi.")
+        print(f"{COLOR_CYAN}[+]{COLOR_RESET} '{script_path}' successfully loaded into Kishi environment.")
     except Exception as e:
-        print(f"{COLOR_RED}source işleminde sistem hatası:{COLOR_RESET} {e}")
+        print(f"{COLOR_RED}system error in source:{COLOR_RESET} {e}")
         return 1
     return 0
 

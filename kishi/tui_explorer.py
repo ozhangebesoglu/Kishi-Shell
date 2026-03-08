@@ -8,18 +8,19 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import has_focus
 from prompt_toolkit.document import Document
-from prompt_toolkit.layout.margins import NumberMargin
+from prompt_toolkit.layout.margins import NumberedMargin
+from prompt_toolkit.enums import EditingMode
 
 def get_explorer_icon(path, filename):
-    if os.path.isdir(path): return "📁"
+    if os.path.isdir(path): return "[DIR ]"
     ext = os.path.splitext(filename)[1].lower()
-    if ext == ".py": return "🐍"
-    if ext in (".txt", ".md", ".json", ".yaml", ".yml", ".ini", ".cfg"): return "📝"
-    if ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".bmp"): return "🖼️"
-    if ext in (".mp3", ".wav", ".ogg", ".flac"): return "🎵"
-    if ext in (".mp4", ".mkv", ".avi", ".webm"): return "🎥"
-    if ext in (".zip", ".tar", ".gz", ".rar", ".7z"): return "📦"
-    return "📄"
+    if ext == ".py": return "[PY  ]"
+    if ext in (".txt", ".md", ".json", ".yaml", ".yml", ".ini", ".cfg"): return "[TXT ]"
+    if ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".bmp"): return "[IMG ]"
+    if ext in (".mp3", ".wav", ".ogg", ".flac"): return "[AUD ]"
+    if ext in (".mp4", ".mkv", ".avi", ".webm"): return "[VID ]"
+    if ext in (".zip", ".tar", ".gz", ".rar", ".7z"): return "[ARCH]"
+    return "[FILE]"
 
 class KishiExplorer:
     def __init__(self, start_dir=".", editor_buffer=None):
@@ -51,12 +52,12 @@ class KishiExplorer:
         self.current_file_path = None
         self.status_msg = ""
         if not self.files:
-            self.set_buffer_text("Dizin boş.")
+            self.set_buffer_text("Directory is empty.")
             return
             
         selected_file = self.files[self.selected_index]
         if selected_file == "..":
-            self.set_buffer_text("Üst Dizine Çık (Backspace / Sol Ok)")
+            self.set_buffer_text("Action: Go to Parent Directory\nShortcut: [Backspace] or [Left Arrow]")
             return
             
         path = os.path.join(self.current_dir, selected_file)
@@ -64,40 +65,40 @@ class KishiExplorer:
         if os.path.isdir(path):
             try:
                 items = os.listdir(path)
-                preview = f"Klasör İçeriği ({len(items)} öğe):\n\n"
+                preview = f"Folder Contents ({len(items)} items):\n\n"
                 for item in items[:50]:
                     icon = get_explorer_icon(os.path.join(path, item), item)
                     preview += f" {icon} {item}\n"
                 if len(items) > 50:
-                    preview += f"\n... ve {len(items)-50} dosya daha."
+                    preview += f"\n... and {len(items)-50} more files."
                 self.set_buffer_text(preview)
             except Exception as e:
-                self.set_buffer_text(f"Erişim engellendi: {e}")
+                self.set_buffer_text(f"Access denied: {e}")
         else:
             try:
                 size_mb = os.path.getsize(path) / (1024 * 1024)
                 if size_mb > 2.0:
-                    self.set_buffer_text(f"Dosya çok büyük ({size_mb:.1f} MB).\n\nPerformans için Editör kapalı.")
+                    self.set_buffer_text(f"File is too large ({size_mb:.1f} MB).\n\nEditor preview disabled for performance.")
                 else:
                     with open(path, 'r', encoding='utf-8') as f:
                         self.set_buffer_text(f.read())
                     self.current_file_path = path
             except UnicodeDecodeError:
-                self.set_buffer_text("İkilik (Binary) dosya.\nEditör desteklenmiyor.")
+                self.set_buffer_text("Binary file.\nEditor preview is not supported.")
             except Exception as e:
-                self.set_buffer_text(f"Okunamıyor: {e}")
+                self.set_buffer_text(f"Cannot read file: {e}")
 
     def save_current_file(self):
         if self.current_file_path and self.editor_buffer:
             try:
                 with open(self.current_file_path, 'w', encoding='utf-8') as f:
                     f.write(self.editor_buffer.text)
-                self.status_msg = f"✓ {os.path.basename(self.current_file_path)} Kaydedildi!"
+                self.status_msg = f"[OK] {os.path.basename(self.current_file_path)} Saved!"
                 return True
             except Exception as e:
-                self.status_msg = f"✗ Kayıt Hatası: {e}"
+                self.status_msg = f"[ERR] Save Error: {e}"
                 return False
-        self.status_msg = "✗ Kaydedilecek düz metin belgesi yok."
+        self.status_msg = "[ERR] No text document to save."
         return False
 
     def get_left_text(self):
@@ -110,28 +111,28 @@ class KishiExplorer:
         end_idx = min(len(self.files), start_idx + 30)
         
         if start_idx > 0:
-            result.append(("class:dir", "   ... (yukarıda daha fazla var)\n"))
+            result.append(("class:dir", "   ... (more items above)\n"))
             
         for i in range(start_idx, end_idx):
             f = self.files[i]
-            prefix = " ▶ " if i == self.selected_index else "   "
+            prefix = " > " if i == self.selected_index else "   "
             style = "class:selected" if i == self.selected_index else ""
             
             if f == "..":
-                icon = "🔙 "
+                icon = "[UP  ] "
             else:
                 icon = get_explorer_icon(os.path.join(self.current_dir, f), f) + " "
             
             if style:
                 result.append((style, prefix + icon + f + "\n"))
             else:
-                if "📁" in icon or "🔙" in icon:
+                if "[DIR" in icon or "[UP" in icon:
                     result.append(("class:dir", prefix + icon + f + "\n"))
                 else:
                     result.append(("", prefix + icon + f + "\n"))
                     
         if end_idx < len(self.files):
-            result.append(("class:dir", "   ... (aşağıda daha fazla var)\n"))
+            result.append(("class:dir", "   ... (more items below)\n"))
             
         return result
 
@@ -147,7 +148,7 @@ def kishi_explore(args):
     right_window = Window(
         content=BufferControl(buffer=editor_buffer, focusable=True), 
         wrap_lines=True,
-        left_margins=[NumberMargin(display_tildes=True)]
+        left_margins=[NumberedMargin(display_tildes=True)]
     )
     
     body = VSplit([
@@ -157,9 +158,9 @@ def kishi_explore(args):
     ])
     
     def get_header():
-        text = " Kishi IDE Explorer | [↑/↓] Gezin | [Tab/Esc] Panel Değiştir | [Ctrl+S] Kaydet | [Space] Dizine Git | [Q] Çıkış "
+        text = " Kishi IDE Explorer | [Up/Down] Navigate | [Tab/Esc] Switch Panel | [Ctrl+S] Save | [Space] Load Directory | [Q] Quit "
         if explorer.status_msg:
-            return [("class:header", text + f" | 🔔 {explorer.status_msg} ")]
+            return [("class:header", text + f" | [*] {explorer.status_msg} ")]
         return [("class:header", text)]
         
     header = Window(height=1, content=FormattedTextControl(text=get_header))
@@ -243,7 +244,8 @@ def kishi_explore(args):
         layout=layout,
         key_bindings=kb,
         style=style,
-        full_screen=True
+        full_screen=True,
+        editing_mode=EditingMode.VI
     )
     
     try:

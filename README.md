@@ -1,69 +1,68 @@
-# 🚀 Kishi Shell (v1.7.6)
+# 🚀 Kishi Shell (v1.8.0)
 
-Kishi Shell, %100 Python ile geliştirilmiş, harici yazılım (Go, C) veya eklenti gerektirmeden tam teşekküllü bir **Terminal İşletim Sistemi Arayüzüne (TUI)** dönüşen yeni nesil komut satırıdır. Geleneksel Bash komut setini modern *IDE (Kod Editörü)* ve *Sistem Monitörü* özellikleriyle birleştirir.
+Kishi Shell is a next-generation command-line interface built 100% in Python. Without relying on external C or Go binaries, it transforms your standard terminal experience into a fully-fledged **Terminal Operating System Interface (TUI)**. It combines traditional Bash syntax with modern *IDE (Code Editor)* and *System Monitor* capabilities natively out of the box.
 
-## 📥 Kurulum & Çalıştırma
-Sisteminize Kishi Shell kurmak için pip aracını kullanın:
+## 📥 Installation
+Install Kishi Shell system-wide using pip:
 ```bash
 pip install --upgrade kishi-shell
 ```
-Terminale `kishi` yazın ve yepyeni bir dünyaya giriş yapın!
+Type `kishi` in your terminal to enter a whole new world!
 
 ---
 
-## 🔥 İleri Düzey Görsel Arayüzler (TUI)
-Kishi Shell size Midnight Commander veya `top`/`htop` indirtmez. Kendi içerisinde %100 Python ile renderladığı sıfır-gecikmeli araçlara sahiptir.
+## 🔥 Advanced Visual Interfaces (TUI)
+Kishi Shell completely negates the need to install third-party tools like Midnight Commander or `htop`. It ships with zero-latency, 100% Python-rendered visual tools.
 
-### 1-) Çift Panelli IDE (File Explorer)
-Dümdüz kara ekranda dosya okumaya son.
-- **Komut:** `explore` (veyahut kısayol **`Ctrl + E`**)
-Kishi ekranı ikiye böler. Sol tarafta klavye yön tuşlarıyla gezebileceğiniz akıllı bir **Klasör Ağacı** oluşturur (Python, Txt ve Medya dosyalarını emojilerle tanır 🐍📝🎵).
-- Düzenlemek istediğiniz dosyanın üzerine gelip **`Tab`** tuşuna basarsanız, sağdaki panel bir anda **Tam Fonksiyonel Text Editörüne** dönüşür! 
-- Kodunuzu yazar, VIM formatlı satır sayılarını görür ve **`Ctrl + S`** ile saniyede kaydedersiniz. 
-- Çıkmak için **`Q`** ya basabilirsiniz.
+### 1-) Dual-Pane IDE (File Explorer)
+Stop reading files in a plain black screen.
+- **Command:** `explore` (or shortcut **`Ctrl + E`**)
+Kishi splits the screen into two. On the left, it generates a smart **Directory Tree** that you can navigate using arrow keys (It automatically identifies Python, Text, and Media files with `[PY]`, `[TXT]`, `[VID]` tags).
+- If you hover over a file and press **`Tab`**, the right panel instantly transforms into a **Fully Functional Text Editor** powered by `prompt_toolkit`.
+- Since version 1.8.0, the editor natively supports `Vi` keybindings! Press `i` to enter Insert mode, write your code, view Vim-style line numbers on the left margin, and press `Esc` to return to Normal Mode. 
+- You can save your edits instantly using **`Ctrl + S`** and quit the interface by pressing **`Q`**.
 
-### 2-) Sistem Monitörü (Dashboard)
-Bilgisayarınızın kalbini anında izleyin.
-- **Komut:** `dashboard`
-Arka planda (Background Daemon Thread) izole olarak çalışan bu monitör; size CPU Çekirdek Kullanımını, RAM / SWAP Metriklerini, Root Disk alanını ve Canlı Ağ (Network Down/Up) Trafiğini gösterir. Kesinlikle lag ve donma yapmaz; akıp giden bir terminal deneyimi sunar.
+### 2-) System Monitor (Dashboard)
+Monitor your computer's heart in real-time.
+- **Command:** `dashboard`
+Running entirely isolated on a Background Daemon Thread, this monitor visualizes your CPU Core Utilization, RAM / SWAP Metrics, Root Storage, and Live Network Traffic (Down/Up). Thanks to its asynchronous architecture, your terminal will never suffer input lag while the dashboard is running.
 
-### 3-) Tarihçe Arama (Fuzzy Search)
-Eski komutlarınızı bulmak için harici FZF kurmanıza gerek yok.
-- **Kısayol:** **`Ctrl + R`**
-Daktilo gibi tuşlara bastıkça binlerce eski komutunuz arasından karakter eşleşmesi yaparak istediğiniz komutu saniyede ekranınıza getirir. `Enter`'a basıp komutu çekebilirsiniz.
+### 3-) Fuzzy History Search
+No need to install FZF externally to search your bash history.
+- **Shortcut:** **`Ctrl + R`**
+As you type, Kishi filters thousands of your past commands using advanced fuzzy-logic string matching and brings your target command directly to your screen in milliseconds. Press `Enter` to select and run.
 
 ---
 
-## 💻 Scripting ve Çevre Değişkenleri (Environment)
+## 💻 Scripting and Environment Variables
 
-### Değişken Atamak ve Okumak (`export`)
-Kishi ortamına diğer programların da okuyabilmesi için yeni değişkenler tanımlayabilirsiniz.
+### Assigning Variables (`export`)
+You can define new environment variables directly inside Kishi so that native OS binaries can inherit them.
 ```bash
 Kishi$ -> export MY_KEY="12345"
 Kishi$ -> echo $MY_KEY
 12345
 ```
-Silmek için `unset MY_KEY` yazmanız yeterlidir. Ortamda yüklü tüm değişkenleri sadece `export` yazarak listeleyebilirsiniz.
+Simply type `unset MY_KEY` to wipe it. If you type `export` without any arguments, Kishi will print out all currently loaded environment variables.
 
-### Kendi Komutlarınızı Üretin (`myfunc`)
-Bir işi sürekli tekrar ediyorsanız Kishi'ye anında kod blokları (Sub-Routines) öğretebilirsiniz. Fonksiyon tanımlamak çok kolaydır:
+### Build Your Own Commands (`myfunc`)
+If you constantly repeat specific tasks, you can deploy your own Sub-Routines (Functions) straight into Kishi's memory:
 
 ```bash
-Kishi$ -> merhaba() { echo "Sisteme Hosgeldiniz $USER"; ls -l; }
-Kishi$ -> merhaba
-Sisteme Hosgeldiniz ozhangebesoglu
+Kishi$ -> hello() { echo "Welcome to the system $USER"; ls -l; }
+Kishi$ -> hello
+Welcome to the system ozhangebesoglu
 drwxrwxr-x 2 user user 4096 ...
 ```
-Fonksiyonları ard arda noktalı virgül (`;`) ile zincirleyebilir, tek satırda devasa otomasyon scriptleri çalıştırabilirsiniz. Dahası, komutlarınızın ve çıktılarınızın ortasına `|`, `&&`, `>`, `>>` gibi karmaşık Shell operatörleri de sıkıştırabilirsiniz!
+You can chain multiple complex functions, pipe their outputs (`|`), use logical chains (`&&`), or even deploy standard redirectors (`>`, `>>`) all within Kishi's powerful Abstract Syntax Tree engine.
 
 ---
 
-## 🙋‍♂️ Yardım Merkezi (`help`)
-Kishi her zaman size asistanlık yapar. Sisteme ait tüm özellikleri ve komut ipuçlarını hatırlamak isterseniz:
-- Kapsamlı (Tam) Yardım İçin: `help`
-- Hızlıca Kısayol Özetleri İçin: `help less`
-yazmanız yeterli olacaktır.
+## 🙋‍♂️ Help Center (`help`)
+Kishi acts as a co-pilot. If you ever forget how to use the IDE or declare variables:
+- For comprehensive manual: `help`
+- For a quick shortcut cheat-sheet: `help less`
 
 ---
-**Geliştiren:** Ozhan Gebesoglu  
-*Python'un sınırlarını Terminal'de zorlamak için tasarlandı.*
+**Developed by:** Ozhan Gebesoglu  
+*Engineered to push the limits of Python in the Terminal environment.*
