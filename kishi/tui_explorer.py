@@ -187,7 +187,12 @@ def kishi_explore(args):
     )
     
     try:
-        app.run()
+        import asyncio
+        try:
+            asyncio.get_running_loop()
+            return app.run_async()
+        except RuntimeError:
+            app.run()
     except Exception as e:
         print(f"Explorer Error: {e}")
         

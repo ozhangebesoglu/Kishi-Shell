@@ -111,4 +111,4 @@ def run_fuzzy_history(history_lines):
         full_screen=True
     )
     
-    return app.run()
+    return app.run_async()

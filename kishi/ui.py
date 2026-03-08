@@ -98,7 +98,7 @@ def _(event):
     clear()
 
 @kishi_bindings.add('c-r')
-def _(event):
+async def _(event):
     " fzf ile geçmiş araması "
     history_file = os.path.join(os.environ.get("HOME", "/"), ".kishi_history")
     if not os.path.exists(history_file): return
@@ -108,12 +108,18 @@ def _(event):
         unique_lines = list(dict.fromkeys(reversed([l.strip() for l in lines if l.strip()])))
         
         from .tui_fuzzy import run_fuzzy_history
-        selected = run_fuzzy_history(unique_lines)
+        selected = await run_fuzzy_history(unique_lines)
         
         if selected:
             event.app.current_buffer.text = selected
             event.app.current_buffer.cursor_position = len(selected)
     except: pass
+
+@kishi_bindings.add('c-e')
+async def _(event):
+    " Ctrl+E ile File Explorer açılışı "
+    from .tui_explorer import kishi_explore
+    await kishi_explore(["explore"])
 
 @kishi_bindings.add('escape', 'enter')
 def _(event):

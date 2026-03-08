@@ -5,9 +5,9 @@ with open("README.md", "r", encoding="utf-8") as fh:
 
 setup(
     name="kishi-shell",
-    version="1.7.0",
+    version="1.7.1",
     author="Ozhan Gebesoglu",
-    author_email="ozhan@example.com",
+    author_email="ozhan.gebesoglu@gmail.com",
     description="A powerful, highly modular, Python-based modern shell.",
     long_description=long_description,
     long_description_content_type="text/markdown",
