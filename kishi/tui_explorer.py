@@ -8,6 +8,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import has_focus
 from prompt_toolkit.document import Document
+from prompt_toolkit.layout.margins import NumberMargin
 
 def get_explorer_icon(path, filename):
     if os.path.isdir(path): return "📁"
@@ -143,7 +144,11 @@ def kishi_explore(args):
     left_control = FormattedTextControl(text=explorer.get_left_text, focusable=True)
     left_window = Window(content=left_control, wrap_lines=False, width=45)
     
-    right_window = Window(content=BufferControl(buffer=editor_buffer, focusable=True), wrap_lines=True)
+    right_window = Window(
+        content=BufferControl(buffer=editor_buffer, focusable=True), 
+        wrap_lines=True,
+        left_margins=[NumberMargin(display_tildes=True)]
+    )
     
     body = VSplit([
         left_window,
@@ -152,7 +157,7 @@ def kishi_explore(args):
     ])
     
     def get_header():
-        text = " Kishi IDE Explorer | [↑/↓] Gezin | [Tab] Panel Değiştir | [Ctrl+S] Kaydet | [Space] Dizine Git | [Q] Çıkış "
+        text = " Kishi IDE Explorer | [↑/↓] Gezin | [Tab/Esc] Panel Değiştir | [Ctrl+S] Kaydet | [Space] Dizine Git | [Q] Çıkış "
         if explorer.status_msg:
             return [("class:header", text + f" | 🔔 {explorer.status_msg} ")]
         return [("class:header", text)]
@@ -171,6 +176,7 @@ def kishi_explore(args):
         event.app.exit()
         
     @kb.add("tab")
+    @kb.add("escape")
     def toggle_focus(event):
         if layout.has_focus(left_window):
             layout.focus(right_window)

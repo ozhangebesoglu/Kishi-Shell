@@ -1,88 +1,69 @@
-# Kishi Shell
+# 🚀 Kishi Shell (v1.7.6)
 
-Kishi Shell, modern Python tabanlı, güçlü, modüler ve platformlar arası uyumlu bir terminal kabuğudur (shell). Klasik Bash/Zsh komut satırı deneyimini `prompt_toolkit` ile birleştirerek sözdizimi renklendirmesi (syntax highlighting), otomatik tamamlama, dinamik yönlendirmeler, zeki geçmiş önerileri ve gelişmiş bir betik (scripting) altyapısı sunar.
+Kishi Shell, %100 Python ile geliştirilmiş, harici yazılım (Go, C) veya eklenti gerektirmeden tam teşekküllü bir **Terminal İşletim Sistemi Arayüzüne (TUI)** dönüşen yeni nesil komut satırıdır. Geleneksel Bash komut setini modern *IDE (Kod Editörü)* ve *Sistem Monitörü* özellikleriyle birleştirir.
 
-*For English documentation, please scroll down below.*
-
-![Kishi Shell](https://raw.githubusercontent.com/ozhangebesoglu/Kishi-Shell/main/docs/preview.png)
-
-## 🇹🇷 Türkçe Dokümantasyon
-
-### Özellikler
-- **SOLID Mimari:** Tamamen nesne yönelimli ve temiz kod (Clean Code) prensipleriyle (Lexer, Parser, Expander, Executor) bölünmüştür.
-- **Akıllı Arayüz (Smart UI):** Komut yazarken anlık hata tespiti (kırmızı/yeşil), Fish-style tarihçe önerileri ve açılır tamamlama menüsü (Drop-down Completions).
-- **Gelişmiş Yönlendirme:** Çıktı ve hata akışları (`>`, `>>`, `2>`, `2>&1`, `|`).
-- **İşletim Sistemi Bağımsızlığı:** Linux (Native OS) ve Windows (Gelişmiş `subprocess` Pipeline Desteği) uyumluluğu.
-- **Dinamik Değişkenler:** Geçici değişken atamaları (`A=5 echo $A`) ve Path genişletmeleri (`~`, `*`).
-- **Gömülü Betik Desteği (Scripting):** `if/else`, `while/for` döngüleri ve hafıza içi fonksiyonlar (`myfunc() { ... }`).
-
-### Kurulum
-
-**Yöntem 1: pip ile Kurulum (Önerilen)**
+## 📥 Kurulum & Çalıştırma
+Sisteminize Kishi Shell kurmak için pip aracını kullanın:
 ```bash
-pip install kishi
+pip install --upgrade kishi-shell
 ```
-
-**Yöntem 2: Hızlı Kurulum Scriptleri (Linux & Windows)**
-Linux (Ubuntu/Arch/Fedora vb.) için varsayılan terminal yapar:
-```bash
-chmod +x install.sh
-sudo ./install.sh
-```
-Windows (PowerShell/CMD) için varsayılan Python ortamına kurar:
-```cmd
-install.bat
-```
-
-### Başlangıç Konfigürasyonu
-Kullanıcı dizininde `.kishirc` adında bir dosya oluşturarak Kishi'nin her açılışında çalıştırılacak alias ve ortam değişkenlerini ayarlayabilirsiniz.
-```bash
-# ~/.kishirc
-alias ll='ls -la'
-export PATH="$PATH:/kisisel/dizin"
-```
+Terminale `kishi` yazın ve yepyeni bir dünyaya giriş yapın!
 
 ---
 
-## 🇬🇧 English Documentation
+## 🔥 İleri Düzey Görsel Arayüzler (TUI)
+Kishi Shell size Midnight Commander veya `top`/`htop` indirtmez. Kendi içerisinde %100 Python ile renderladığı sıfır-gecikmeli araçlara sahiptir.
 
-Kishi Shell is a modern, Python-based, powerful, modular, and cross-platform terminal shell. By combining the classic Bash/Zsh command-line experience with `prompt_toolkit`, it offers syntax highlighting, smart auto-completion menus, dynamic pipeline routing, intelligent history suggestions (Fish style), and an advanced built-in scripting infrastructure.
+### 1-) Çift Panelli IDE (File Explorer)
+Dümdüz kara ekranda dosya okumaya son.
+- **Komut:** `explore` (veyahut kısayol **`Ctrl + E`**)
+Kishi ekranı ikiye böler. Sol tarafta klavye yön tuşlarıyla gezebileceğiniz akıllı bir **Klasör Ağacı** oluşturur (Python, Txt ve Medya dosyalarını emojilerle tanır 🐍📝🎵).
+- Düzenlemek istediğiniz dosyanın üzerine gelip **`Tab`** tuşuna basarsanız, sağdaki panel bir anda **Tam Fonksiyonel Text Editörüne** dönüşür! 
+- Kodunuzu yazar, VIM formatlı satır sayılarını görür ve **`Ctrl + S`** ile saniyede kaydedersiniz. 
+- Çıkmak için **`Q`** ya basabilirsiniz.
 
-### Features
-- **SOLID Architecture:** Fully object-oriented and divided by Clean Code principles (Lexer, Parser, Expander, Executor components).
-- **Smart UI:** Real-time syntax error detection (red/green rendering), Fish-style ghost suggestions, and drop-down auto-completion menus for paths/commands.
-- **Advanced Redirection:** Output and error streams support (`>`, `>>`, `2>`, `2>&1`, `|`).
-- **OS Independence:** Linux Native OS compatibility along with full Windows support via a specialized `subprocess` pipeline fallback.
-- **Dynamic Variables:** Temporary variable assignments (`A=5 echo $A`) and path expansions (`~`, `*`).
-- **Built-in Scripting Engine:** `if/else`, `while/for` loop structures, and in-memory callable routines (`myfunc() { ... }`).
+### 2-) Sistem Monitörü (Dashboard)
+Bilgisayarınızın kalbini anında izleyin.
+- **Komut:** `dashboard`
+Arka planda (Background Daemon Thread) izole olarak çalışan bu monitör; size CPU Çekirdek Kullanımını, RAM / SWAP Metriklerini, Root Disk alanını ve Canlı Ağ (Network Down/Up) Trafiğini gösterir. Kesinlikle lag ve donma yapmaz; akıp giden bir terminal deneyimi sunar.
 
-### Installation
+### 3-) Tarihçe Arama (Fuzzy Search)
+Eski komutlarınızı bulmak için harici FZF kurmanıza gerek yok.
+- **Kısayol:** **`Ctrl + R`**
+Daktilo gibi tuşlara bastıkça binlerce eski komutunuz arasından karakter eşleşmesi yaparak istediğiniz komutu saniyede ekranınıza getirir. `Enter`'a basıp komutu çekebilirsiniz.
 
-**Method 1: via pip (Recommended)**
+---
+
+## 💻 Scripting ve Çevre Değişkenleri (Environment)
+
+### Değişken Atamak ve Okumak (`export`)
+Kishi ortamına diğer programların da okuyabilmesi için yeni değişkenler tanımlayabilirsiniz.
 ```bash
-pip install kishi
+Kishi$ -> export MY_KEY="12345"
+Kishi$ -> echo $MY_KEY
+12345
 ```
+Silmek için `unset MY_KEY` yazmanız yeterlidir. Ortamda yüklü tüm değişkenleri sadece `export` yazarak listeleyebilirsiniz.
 
-**Method 2: Quick Installer Scripts (Linux & Windows)**
-For Linux systems, this will make Kishi your default `chsh` shell:
+### Kendi Komutlarınızı Üretin (`myfunc`)
+Bir işi sürekli tekrar ediyorsanız Kishi'ye anında kod blokları (Sub-Routines) öğretebilirsiniz. Fonksiyon tanımlamak çok kolaydır:
+
 ```bash
-chmod +x install.sh
-sudo ./install.sh
+Kishi$ -> merhaba() { echo "Sisteme Hosgeldiniz $USER"; ls -l; }
+Kishi$ -> merhaba
+Sisteme Hosgeldiniz ozhangebesoglu
+drwxrwxr-x 2 user user 4096 ...
 ```
-For Windows (PowerShell/CMD), run this as Administrator:
-```cmd
-install.bat
-```
+Fonksiyonları ard arda noktalı virgül (`;`) ile zincirleyebilir, tek satırda devasa otomasyon scriptleri çalıştırabilirsiniz. Dahası, komutlarınızın ve çıktılarınızın ortasına `|`, `&&`, `>`, `>>` gibi karmaşık Shell operatörleri de sıkıştırabilirsiniz!
 
-### Startup Configuration
-Create a `.kishirc` file in your home directory to set up aliases and environment variables executed every time Kishi starts.
-```bash
-# ~/.kishirc
-alias ll='ls -la'
-export PATH="$PATH:/personal/paths"
-```
+---
 
-## License
-GNU General Public License v3.0 (GPL-3.0)
+## 🙋‍♂️ Yardım Merkezi (`help`)
+Kishi her zaman size asistanlık yapar. Sisteme ait tüm özellikleri ve komut ipuçlarını hatırlamak isterseniz:
+- Kapsamlı (Tam) Yardım İçin: `help`
+- Hızlıca Kısayol Özetleri İçin: `help less`
+yazmanız yeterli olacaktır.
 
-Kishi Shell is a free and open-source software. Under this license, you are free to copy, modify, and distribute the code. **However, any derivative work or project using Kishi Shell's source code MUST also be distributed as open-source under the GPL-3.0 license.** It cannot be used in completely closed-source commercial products.
+---
+**Geliştiren:** Ozhan Gebesoglu  
+*Python'un sınırlarını Terminal'de zorlamak için tasarlandı.*

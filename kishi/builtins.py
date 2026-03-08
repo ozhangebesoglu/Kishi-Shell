@@ -41,34 +41,44 @@ def kishi_exit(args):
 def kishi_clear(args):
     clear()
     return 0
-
 def kishi_help(args):
-    print(f"""
-{COLOR_AMBER}Kishi Shell Gelişmiş Sürüm (v1.6 SOLID){COLOR_RESET}
+    help_text = f"""
+{COLOR_AMBER}Kishi Shell Gelişmiş Sürüm (v1.7) - KULLANIM REHBERİ{COLOR_RESET}
 
-Built-in (Dahili) Komutlar:
-  cd [dizin]     Dizin değiştirir
-  pwd            Mevcut dizini gösterir
-  history        Geçmiş komutları listeler
-  clear          Ekranı temizler
-  jobs           Arka plan işlemlerini gösterir
-  bg / fg        İşlemleri arka plana/ön plana alır
-  export         Global ortam değişkeni atar
-  unset          Ortam değişkenini siler
-  test / [ ]     Mantıksal kontroller yapar
-  help           Bu menüyü gösterir
-  exit           Shell'den çıkar
+📚 TEMEL KOMUTLAR:
+  cd <dizin>     : Dizin değiştirir. (Örn: cd /home, cd ..)
+  pwd            : Mevcut dizinin tam yolunu yazdırır.
+  clear          : Terminal ekranını temizler. (Kısayol: Ctrl + L)
+  exit / q       : Kishi Shell'den çıkış yapar.
 
-Gelişmiş Özellikler:
-  | (Pipe):         Örn: ls -l | grep py | wc -l
-  > / >> / 2> :     Çıktı ve Hata Yönlendirmeleri
-  & (Arka Plan):    Örn: sleep 10 &
-  && / || / ;       Mantıksal ve Sıralı Zincirler
-  $(cmd) / `cmd`    Komut Çıktısı Yakalama
-  !! / !$           Geçmiş Hızlandırıcıları
-  if/for/while      Betik (Scripting) Döngüleri
-  myfunc() {{...}}    Bellek içi Sub-Routines
-""")
+🔥 İLERİ DÜZEY TUI (GÖRSEL ARAYÜZLER):
+  explore        : (Çift Panelli IDE) Dosya Yöneticisine girer. 
+                   Klasörlerde gezip sağdaki editörde anında kod yazabilirsiniz.
+  dashboard      : Sistem Monitörünü (CPU/RAM/GPU/Ağ) tam ekran açar.
+
+⌨️  ÖZEL KISAYOLLAR:
+  [Ctrl + R]     : (Tarihçe Araması) Eski yazdığınız komutları aratıp seçebilirsiniz.
+  [Ctrl + E]     : 'explore' komutunu çalıştırarak File Explorer GUI'yi açar.
+  [Ctrl + L]     : Ekranı temizler.
+  [Tab / Esc]    : File Explorer'dayken Dosya Ağacı ile Editör arasında odak (focus) değiştirir.
+  [Ctrl + S]     : File Explorer editöründeyken yazdığınız metni kaydeder.
+
+💻 ORTAM DEĞİŞKENLERİ & SCRIPTING:
+  export X=1     : Sistemin kalıcı çevre değişkenini ayarlar. (Örn: export PATH=/opt:$PATH)
+  unset X        : Atanmış bir değişkeni hafızadan tamamen siler.
+
+⚙️  FONKSİYON TANIMLAMA (myfunc):
+  Tekrarlayan işleriniz için kendi komutlarınızı icat edebilirsiniz:
+  Örnek: 
+    Kishi$ -> merhaba() {{ echo "Sisteme hosgeldin $USER"; ls; }}
+    Kishi$ -> merhaba
+    Sisteme hosgeldin ozhangebesoglu
+    (klasördeki dosyalar listelenir)
+"""
+    if len(args) > 1 and args[1] == "less":
+        print(f"{COLOR_AMBER}KISAYOLLAR:{COLOR_RESET} Ctrl+R (Arama), Ctrl+E (Explorer) | {COLOR_CYAN}KOMUTLAR:{COLOR_RESET} dashboard, explore, export X=1, func() {{}}")
+    else:
+        print(help_text)
     return 0
 
 def kishi_history(args):
