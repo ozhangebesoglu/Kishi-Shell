@@ -27,9 +27,16 @@ def generate_bar(percentage, width=15):
     ]
 
 gpu_text_cache = [("class:invalid", "\n Yükleniyor...\n")]
+cpu_text_cache = []
+ram_text_cache = []
+net_text_cache = []
 
-def fetch_gpu_background():
-    global gpu_text_cache
+last_net = None
+
+def fetch_system_background():
+    global gpu_text_cache, cpu_text_cache, ram_text_cache, net_text_cache, last_net
+    
+    # --- GPU FETCH ---
     try:
         out = subprocess.check_output(
             ["nvidia-smi", "--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total", "--format=csv,noheader"],
@@ -44,56 +51,49 @@ def fetch_gpu_background():
                 ("class:label", " VRAM Used: "), ("", f"{parts[3]}\n"),
                 ("class:label", " VRAM Totl: "), ("", f"{parts[4]}\n"),
             ]
-            return
+        else:
+            gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi bulunamadı)\n")]
     except:
-        pass
-    gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi bulunamadı)\n")]
+        gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi bulunamadı)\n")]
 
-def get_gpu_info():
-    return gpu_text_cache
-
-def get_cpu_info():
-    text = []
-    # Using small interval to smooth out CPU chunks but keep it mostly non-blocking
+    # --- CPU FETCH ---
+    c_text = []
     cpu = psutil.cpu_percent(interval=0.1)
-    text.append(("class:label", " Total: "))
-    text.extend(generate_bar(cpu, width=12))
-    text.append(("", "\n\n"))
+    c_text.append(("class:label", " Total: "))
+    c_text.extend(generate_bar(cpu, width=12))
+    c_text.append(("", "\n\n"))
     cores = psutil.cpu_percent(interval=0.1, percpu=True)
     for i, c in enumerate(cores[:8]):
-        text.append(("class:label", f" C{i:<2}: "))
-        text.extend(generate_bar(c, width=13))
-        text.append(("", "\n"))
-    return text
+        c_text.append(("class:label", f" C{i:<2}: "))
+        c_text.extend(generate_bar(c, width=13))
+        c_text.append(("", "\n"))
+    cpu_text_cache = c_text
 
-def get_ram_info():
-    text = []
+    # --- RAM FETCH ---
+    r_text = []
     vmem = psutil.virtual_memory()
-    text.append(("class:label", " RAM Kullanım:\n "))
-    text.extend(generate_bar(vmem.percent, width=18))
-    text.append(("", f"\n {vmem.used / (1024**3):.1f} GB / {vmem.total / (1024**3):.1f} GB\n\n"))
+    r_text.append(("class:label", " RAM Kullanım:\n "))
+    r_text.extend(generate_bar(vmem.percent, width=18))
+    r_text.append(("", f"\n {vmem.used / (1024**3):.1f} GB / {vmem.total / (1024**3):.1f} GB\n\n"))
     
     swap = psutil.swap_memory()
-    text.append(("class:label", " SWAP Kullanım:\n "))
-    text.extend(generate_bar(swap.percent, width=18))
-    text.append(("", f"\n {swap.used / (1024**3):.1f} GB / {swap.total / (1024**3):.1f} GB\n"))
-    
-    return text
+    r_text.append(("class:label", " SWAP Kullanım:\n "))
+    r_text.extend(generate_bar(swap.percent, width=18))
+    r_text.append(("", f"\n {swap.used / (1024**3):.1f} GB / {swap.total / (1024**3):.1f} GB\n"))
+    ram_text_cache = r_text
 
-last_net = None
-def get_net_info():
-    global last_net
-    text = []
+    # --- NET / DISK FETCH ---
+    n_text = []
     try:
         disk = psutil.disk_usage('/')
-        text.append(("class:label", " Root Disk (/):\n "))
-        text.extend(generate_bar(disk.percent, width=18))
-        text.append(("", f"\n Free: {disk.free / (1024**3):.1f}GB / {disk.total / (1024**3):.1f}GB\n\n"))
+        n_text.append(("class:label", " Root Disk (/):\n "))
+        n_text.extend(generate_bar(disk.percent, width=18))
+        n_text.append(("", f"\n Free: {disk.free / (1024**3):.1f}GB / {disk.total / (1024**3):.1f}GB\n\n"))
     except: pass
     
     try:
         curr_net = psutil.net_io_counters()
-        text.append(("class:label", " Ağ Trafiği (Network):\n"))
+        n_text.append(("class:label", " Ağ Trafiği (Network):\n"))
         
         down_speed = 0
         up_speed = 0
@@ -102,12 +102,17 @@ def get_net_info():
             up_speed = (curr_net.bytes_sent - last_net.bytes_sent) / 1024
             
         last_net = curr_net
-        text.append(("", f" Down:  {down_speed:.1f} KB/s\n"))
-        text.append(("", f" Up  :  {up_speed:.1f} KB/s\n\n"))
-        text.append(("ansigray", f" Tot. Rx: {curr_net.bytes_recv / (1024**2):.1f} MB\n"))
-        text.append(("ansigray", f" Tot. Tx: {curr_net.bytes_sent / (1024**2):.1f} MB\n"))
+        n_text.append(("", f" Down:  {down_speed:.1f} KB/s\n"))
+        n_text.append(("", f" Up  :  {up_speed:.1f} KB/s\n\n"))
+        n_text.append(("ansigray", f" Tot. Rx: {curr_net.bytes_recv / (1024**2):.1f} MB\n"))
+        n_text.append(("ansigray", f" Tot. Tx: {curr_net.bytes_sent / (1024**2):.1f} MB\n"))
     except: pass
-    return text
+    net_text_cache = n_text
+
+def get_gpu_info(): return gpu_text_cache
+def get_cpu_info(): return cpu_text_cache
+def get_ram_info(): return ram_text_cache
+def get_net_info(): return net_text_cache
 
 def kishi_dashboard(args):
     psutil.cpu_percent(interval=None)
@@ -207,10 +212,10 @@ def kishi_dashboard(args):
     )
     
     def update_loop():
-        fetch_gpu_background()
+        fetch_system_background()
         while app.is_running:
             time.sleep(2.5)
-            fetch_gpu_background()
+            fetch_system_background()
             try:
                 app.invalidate()
             except: pass

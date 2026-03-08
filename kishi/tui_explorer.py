@@ -6,6 +6,17 @@ from prompt_toolkit.layout.controls import FormattedTextControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.styles import Style
 
+def get_explorer_icon(path, filename):
+    if os.path.isdir(path): return "📁"
+    ext = os.path.splitext(filename)[1].lower()
+    if ext == ".py": return "🐍"
+    if ext in (".txt", ".md", ".json", ".yaml", ".yml", ".ini", ".cfg"): return "📝"
+    if ext in (".png", ".jpg", ".jpeg", ".gif", ".svg", ".bmp"): return "🖼️"
+    if ext in (".mp3", ".wav", ".ogg", ".flac"): return "🎵"
+    if ext in (".mp4", ".mkv", ".avi", ".webm"): return "🎥"
+    if ext in (".zip", ".tar", ".gz", ".rar", ".7z"): return "📦"
+    return "📄"
+
 class KishiExplorer:
     def __init__(self, start_dir="."):
         self.current_dir = os.path.abspath(start_dir)
@@ -43,7 +54,7 @@ class KishiExplorer:
                 items = os.listdir(path)
                 preview = f"Klasör İçeriği ({len(items)} öğe):\n\n"
                 for item in items[:50]:
-                    icon = "[D]" if os.path.isdir(os.path.join(path, item)) else "[F]"
+                    icon = get_explorer_icon(os.path.join(path, item), item)
                     preview += f" {icon} {item}\n"
                 if len(items) > 50:
                     preview += f"\n... ve {len(items)-50} dosya daha."
@@ -64,7 +75,7 @@ class KishiExplorer:
                 self.preview_text = f"Okunamıyor: {e}"
 
     def get_left_text(self):
-        result = [("class:title", f" [DIR] {self.current_dir}\n")]
+        result = [("class:title", f" 📂 {self.current_dir}\n")]
         result.append(("class:line", "=" * 45 + "\n"))
         
         # Sayfalama mantığı (Ekrana sığmayanlar için kaydırma)
@@ -81,14 +92,14 @@ class KishiExplorer:
             style = "class:selected" if i == self.selected_index else ""
             
             if f == "..":
-                icon = "[..] "
+                icon = "🔙 "
             else:
-                icon = "[D] " if os.path.isdir(os.path.join(self.current_dir, f)) else "[F] "
+                icon = get_explorer_icon(os.path.join(self.current_dir, f), f) + " "
             
             if style:
                 result.append((style, prefix + icon + f + "\n"))
             else:
-                if "[D]" in icon or "[..]" in icon:
+                if "📁" in icon or "🔙" in icon:
                     result.append(("class:dir", prefix + icon + f + "\n"))
                 else:
                     result.append(("", prefix + icon + f + "\n"))
