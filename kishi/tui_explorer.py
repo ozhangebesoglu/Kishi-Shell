@@ -2,9 +2,12 @@ import os
 from prompt_toolkit.application import Application
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout.containers import Window, VSplit, HSplit
-from prompt_toolkit.layout.controls import FormattedTextControl
+from prompt_toolkit.layout.controls import FormattedTextControl, BufferControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.styles import Style
+from prompt_toolkit.buffer import Buffer
+from prompt_toolkit.filters import has_focus
+from prompt_toolkit.document import Document
 
 def get_explorer_icon(path, filename):
     if os.path.isdir(path): return "📁"
@@ -18,11 +21,13 @@ def get_explorer_icon(path, filename):
     return "📄"
 
 class KishiExplorer:
-    def __init__(self, start_dir="."):
+    def __init__(self, start_dir=".", editor_buffer=None):
         self.current_dir = os.path.abspath(start_dir)
         self.files = []
         self.selected_index = 0
-        self.preview_text = ""
+        self.editor_buffer = editor_buffer
+        self.current_file_path = None
+        self.status_msg = ""
         self.refresh_files()
         
     def refresh_files(self):
@@ -37,14 +42,20 @@ class KishiExplorer:
             self.selected_index = max(0, len(self.files) - 1)
         self.update_preview()
         
+    def set_buffer_text(self, text):
+        if self.editor_buffer:
+            self.editor_buffer.document = Document(text=text, cursor_position=0)
+
     def update_preview(self):
+        self.current_file_path = None
+        self.status_msg = ""
         if not self.files:
-            self.preview_text = "Dizin boş."
+            self.set_buffer_text("Dizin boş.")
             return
             
         selected_file = self.files[self.selected_index]
         if selected_file == "..":
-            self.preview_text = "Üst Dizine Çık (Backspace / Sol Ok)"
+            self.set_buffer_text("Üst Dizine Çık (Backspace / Sol Ok)")
             return
             
         path = os.path.join(self.current_dir, selected_file)
@@ -58,21 +69,35 @@ class KishiExplorer:
                     preview += f" {icon} {item}\n"
                 if len(items) > 50:
                     preview += f"\n... ve {len(items)-50} dosya daha."
-                self.preview_text = preview
+                self.set_buffer_text(preview)
             except Exception as e:
-                self.preview_text = f"Erişim engellendi: {e}"
+                self.set_buffer_text(f"Erişim engellendi: {e}")
         else:
             try:
                 size_mb = os.path.getsize(path) / (1024 * 1024)
                 if size_mb > 2.0:
-                    self.preview_text = f"Dosya çok büyük ({size_mb:.1f} MB).\n\nPerformans için önizleme kapalı."
+                    self.set_buffer_text(f"Dosya çok büyük ({size_mb:.1f} MB).\n\nPerformans için Editör kapalı.")
                 else:
                     with open(path, 'r', encoding='utf-8') as f:
-                        self.preview_text = f.read(3000)
+                        self.set_buffer_text(f.read())
+                    self.current_file_path = path
             except UnicodeDecodeError:
-                self.preview_text = "İkilik (Binary) dosya.\nÖnizleme desteklenmiyor."
+                self.set_buffer_text("İkilik (Binary) dosya.\nEditör desteklenmiyor.")
             except Exception as e:
-                self.preview_text = f"Okunamıyor: {e}"
+                self.set_buffer_text(f"Okunamıyor: {e}")
+
+    def save_current_file(self):
+        if self.current_file_path and self.editor_buffer:
+            try:
+                with open(self.current_file_path, 'w', encoding='utf-8') as f:
+                    f.write(self.editor_buffer.text)
+                self.status_msg = f"✓ {os.path.basename(self.current_file_path)} Kaydedildi!"
+                return True
+            except Exception as e:
+                self.status_msg = f"✗ Kayıt Hatası: {e}"
+                return False
+        self.status_msg = "✗ Kaydedilecek düz metin belgesi yok."
+        return False
 
     def get_left_text(self):
         result = [("class:title", f" 📂 {self.current_dir}\n")]
@@ -108,17 +133,17 @@ class KishiExplorer:
             result.append(("class:dir", "   ... (aşağıda daha fazla var)\n"))
             
         return result
-        
-    def get_right_text(self):
-        return [("class:preview", self.preview_text)]
 
 def kishi_explore(args):
     start_dir = os.getcwd() if len(args) < 2 else args[1]
-    explorer = KishiExplorer(start_dir)
-    app = None
     
-    left_window = Window(content=FormattedTextControl(text=explorer.get_left_text), wrap_lines=False, width=50)
-    right_window = Window(content=FormattedTextControl(text=explorer.get_right_text), wrap_lines=True)
+    editor_buffer = Buffer(multiline=True)
+    explorer = KishiExplorer(start_dir, editor_buffer)
+    
+    left_control = FormattedTextControl(text=explorer.get_left_text, focusable=True)
+    left_window = Window(content=left_control, wrap_lines=False, width=45)
+    
+    right_window = Window(content=BufferControl(buffer=editor_buffer, focusable=True), wrap_lines=True)
     
     body = VSplit([
         left_window,
@@ -126,33 +151,50 @@ def kishi_explore(args):
         right_window
     ])
     
-    header_text = [("class:header", " Kishi Explorer | [↑/↓] Gezin | [Enter/Right] Gir | [Backspace/Left] Geri | [Space] Kabuk Dizini Yap | [Q] Çıkış ")]
-    header = Window(height=1, content=FormattedTextControl(text=header_text))
+    def get_header():
+        text = " Kishi IDE Explorer | [↑/↓] Gezin | [Tab] Panel Değiştir | [Ctrl+S] Kaydet | [Space] Dizine Git | [Q] Çıkış "
+        if explorer.status_msg:
+            return [("class:header", text + f" | 🔔 {explorer.status_msg} ")]
+        return [("class:header", text)]
+        
+    header = Window(height=1, content=FormattedTextControl(text=get_header))
     
-    layout = Layout(HSplit([header, body]))
+    layout = Layout(HSplit([header, body]), focused_element=left_window)
     
     kb = KeyBindings()
+    left_focused = has_focus(left_window)
     
-    @kb.add("q")
-    @kb.add("Q")
+    @kb.add("q", filter=left_focused)
+    @kb.add("Q", filter=left_focused)
     @kb.add("c-c")
     def exit_app(event):
         event.app.exit()
         
-    @kb.add("up")
+    @kb.add("tab")
+    def toggle_focus(event):
+        if layout.has_focus(left_window):
+            layout.focus(right_window)
+        else:
+            layout.focus(left_window)
+            
+    @kb.add("c-s")
+    def save_file(event):
+        explorer.save_current_file()
+        
+    @kb.add("up", filter=left_focused)
     def move_up(event):
         if explorer.selected_index > 0:
             explorer.selected_index -= 1
             explorer.update_preview()
             
-    @kb.add("down")
+    @kb.add("down", filter=left_focused)
     def move_down(event):
         if explorer.selected_index < len(explorer.files) - 1:
             explorer.selected_index += 1
             explorer.update_preview()
             
-    @kb.add("enter")
-    @kb.add("right")
+    @kb.add("enter", filter=left_focused)
+    @kb.add("right", filter=left_focused)
     def enter_dir(event):
         if explorer.files:
             selected = explorer.files[explorer.selected_index]
@@ -165,9 +207,12 @@ def kishi_explore(args):
                 explorer.current_dir = os.path.abspath(path)
                 explorer.selected_index = 0
                 explorer.refresh_files()
+            else:
+                # Dosya seçildi, editöre geç
+                layout.focus(right_window)
                 
-    @kb.add("backspace")
-    @kb.add("left")
+    @kb.add("backspace", filter=left_focused)
+    @kb.add("left", filter=left_focused)
     def go_back(event):
         parent = os.path.dirname(explorer.current_dir)
         if parent != explorer.current_dir:
@@ -175,9 +220,8 @@ def kishi_explore(args):
             explorer.selected_index = 0
             explorer.refresh_files()
             
-    @kb.add("space")
+    @kb.add("space", filter=left_focused)
     def select_and_exit(event):
-        # Kishi shell'in o anki dizinini değiştirerek çık
         os.chdir(explorer.current_dir)
         event.app.exit()
             
@@ -186,7 +230,6 @@ def kishi_explore(args):
         "title": "ansicyan bold",
         "selected": "bg:#0055aa #ffffff bold",
         "dir": "ansiblue bold",
-        "preview": "ansigray",
         "line": "ansidarkgray"
     })
     
