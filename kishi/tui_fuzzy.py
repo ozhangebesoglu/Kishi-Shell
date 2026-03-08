@@ -62,7 +62,7 @@ def run_fuzzy_history(history_lines):
         Window(content=BufferControl(buffer=search_buffer))
     ])
     
-    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " 🔍 Kishi Tarihçe (Fuzzy Search) | [Enter] Komutu Seç | [Esc] İptal ")]))
+    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " [SEARCH] Kishi Tarihçe (Fuzzy Search) | [Enter] Komutu Seç | [Esc] İptal ")]))
     
     layout = Layout(HSplit([
         header,

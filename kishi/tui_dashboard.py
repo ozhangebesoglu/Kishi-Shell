@@ -26,7 +26,10 @@ def generate_bar(percentage, width=15):
         ("", f" {percentage:5.1f}%")
     ]
 
-def get_gpu_info():
+gpu_text_cache = [("class:invalid", "\n Yükleniyor...\n")]
+
+def fetch_gpu_background():
+    global gpu_text_cache
     try:
         out = subprocess.check_output(
             ["nvidia-smi", "--query-gpu=name,temperature.gpu,utilization.gpu,memory.used,memory.total", "--format=csv,noheader"],
@@ -34,16 +37,20 @@ def get_gpu_info():
         )
         parts = out.strip().split(", ")
         if len(parts) >= 5:
-            return [
+            gpu_text_cache = [
                 ("class:title", f" {parts[0][:20]}\n\n"),
                 ("class:label", " Core Temp: "), ("", f"{parts[1]} °C\n"),
                 ("class:label", " GPU Util : "), ("", f"{parts[2]}\n"),
                 ("class:label", " VRAM Used: "), ("", f"{parts[3]}\n"),
                 ("class:label", " VRAM Totl: "), ("", f"{parts[4]}\n"),
             ]
+            return
     except:
         pass
-    return [("class:invalid", "\n N/A\n (nvidia-smi bulunamadı)\n")]
+    gpu_text_cache = [("class:invalid", "\n N/A\n (nvidia-smi bulunamadı)\n")]
+
+def get_gpu_info():
+    return gpu_text_cache
 
 def get_cpu_info():
     text = []
@@ -71,10 +78,6 @@ def get_ram_info():
     text.extend(generate_bar(swap.percent, width=18))
     text.append(("", f"\n {swap.used / (1024**3):.1f} GB / {swap.total / (1024**3):.1f} GB\n"))
     
-    # "CAVA" placeholder as requested
-    text.append(("class:label", "\n 🎵 CAVA (Mock Audio):\n"))
-    import random
-    text.append(("ansimagenta", " ▂▃▄▅" + "".join(random.choice(" ▂▃▄▅▆▇█") for _ in range(15)) + "\n"))
     return text
 
 last_net = None
@@ -110,10 +113,10 @@ def kishi_dashboard(args):
     psutil.cpu_percent(interval=None)
     psutil.cpu_percent(interval=None, percpu=True)
     
-    # Sol Paneller (GPU, RAM/CAVA)
+    # Sol Paneller (GPU, RAM)
     left_col = HSplit([
         Frame(Window(content=FormattedTextControl(text=get_gpu_info)), title="[ GPU ]"),
-        Frame(Window(content=FormattedTextControl(text=get_ram_info)), title="[ Memory & CAVA ]")
+        Frame(Window(content=FormattedTextControl(text=get_ram_info)), title="[ Memory & Swap ]")
     ], width=28)
     
     # Sağ Paneller (CPU, DISK/NET)
@@ -124,7 +127,7 @@ def kishi_dashboard(args):
     
     # Merkez (Terminal & Input)
     output_buffer = Buffer(multiline=True)
-    output_buffer.text = " 🚀 Kishi Shell Dashboard Command Center\n =====================================\n - Normal shell'e dönmek için 'exit' veya 'q' yazın.\n - Komut çalıştırabilirsiniz (Basit read-only komutlar pty gerektirmez).\n\n"
+    output_buffer.text = " [KISHI] Kishi Shell Dashboard Command Center\n =====================================\n - Normal shell'e dönmek için 'exit' veya 'q' yazın.\n - Komut çalıştırabilirsiniz (Basit read-only komutlar pty gerektirmez).\n\n"
     
     input_buffer = Buffer(multiline=False)
     
@@ -166,7 +169,7 @@ def kishi_dashboard(args):
                 target = cmd.split(" ", 1)[1]
                 path = os.path.expanduser(target)
                 os.chdir(path)
-                new_text += f"🏠 Dizin değiştirildi: {os.getcwd()}\n"
+                new_text += f"[DIR] Dizin değiştirildi: {os.getcwd()}\n"
             elif cmd == "clear":
                 new_text = ""
             else:
@@ -204,8 +207,10 @@ def kishi_dashboard(args):
     )
     
     def update_loop():
+        fetch_gpu_background()
         while app.is_running:
             time.sleep(2.5)
+            fetch_gpu_background()
             try:
                 app.invalidate()
             except: pass

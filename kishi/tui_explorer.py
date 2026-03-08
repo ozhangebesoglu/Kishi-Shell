@@ -16,7 +16,7 @@ class KishiExplorer:
         
     def refresh_files(self):
         try:
-            items = os.listdir(self.current_dir)
+            items = [item for item in os.listdir(self.current_dir) if not item.startswith('.')]
             # Dizinler üstte, dosyalar altta olacak şekilde sırala
             self.files = [".."] + sorted(items, key=lambda x: (not os.path.isdir(os.path.join(self.current_dir, x)), x.lower()))
         except Exception:
@@ -43,7 +43,7 @@ class KishiExplorer:
                 items = os.listdir(path)
                 preview = f"Klasör İçeriği ({len(items)} öğe):\n\n"
                 for item in items[:50]:
-                    icon = "📁" if os.path.isdir(os.path.join(path, item)) else "📄"
+                    icon = "[D]" if os.path.isdir(os.path.join(path, item)) else "[F]"
                     preview += f" {icon} {item}\n"
                 if len(items) > 50:
                     preview += f"\n... ve {len(items)-50} dosya daha."
@@ -64,7 +64,7 @@ class KishiExplorer:
                 self.preview_text = f"Okunamıyor: {e}"
 
     def get_left_text(self):
-        result = [("class:title", f" 📂 {self.current_dir}\n")]
+        result = [("class:title", f" [DIR] {self.current_dir}\n")]
         result.append(("class:line", "=" * 45 + "\n"))
         
         # Sayfalama mantığı (Ekrana sığmayanlar için kaydırma)
@@ -81,14 +81,14 @@ class KishiExplorer:
             style = "class:selected" if i == self.selected_index else ""
             
             if f == "..":
-                icon = "🔙 "
+                icon = "[..] "
             else:
-                icon = "📁 " if os.path.isdir(os.path.join(self.current_dir, f)) else "📄 "
+                icon = "[D] " if os.path.isdir(os.path.join(self.current_dir, f)) else "[F] "
             
             if style:
                 result.append((style, prefix + icon + f + "\n"))
             else:
-                if "📁" in icon or "🔙" in icon:
+                if "[D]" in icon or "[..]" in icon:
                     result.append(("class:dir", prefix + icon + f + "\n"))
                 else:
                     result.append(("", prefix + icon + f + "\n"))
