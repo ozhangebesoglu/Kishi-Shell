@@ -216,7 +216,8 @@ def kishi_dashboard(args):
         # If a process is already interactive, forward input to its stdin
         if running_process and running_process.poll() is None:
             try:
-                running_process.stdin.write(cmd + "\n")
+                # Write to unbuffered binary pipe
+                running_process.stdin.write((cmd + "\n").encode('utf-8'))
                 running_process.stdin.flush()
                 # Echo the user's input directly into the terminal
                 new_text = output_buffer.text + f"{cmd}\n"
@@ -251,32 +252,39 @@ def kishi_dashboard(args):
             elif cmd == "clear":
                 output_buffer.text = ""
             else:
-                # Launch custom background interactive process
+                # Launch custom background interactive process. Use bufsize=0 to force unbuffered binary streaming
                 running_process = subprocess.Popen(
                     cmd, shell=True, cwd=cwd,
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    text=True, bufsize=1, env={**os.environ, "PYTHONUNBUFFERED": "1"}
+                    bufsize=0, env={**os.environ, "PYTHONUNBUFFERED": "1"}
                 )
                 
                 # Setup daemon thread to stream output back to the UI
                 def read_stdout():
                     while True:
-                        line = running_process.stdout.readline()
-                        if not line and running_process.poll() is not None:
-                            break
-                        if line:
-                            # Appending UI in a thread-safe-ish way for prompt_toolkit
+                        try:
+                            # Read any chunk up to 1024 without waiting for \n
+                            data = running_process.stdout.read(1024)
+                            if not data:
+                                if running_process.poll() is not None:
+                                    break
+                                time.sleep(0.01)
+                                continue
+                                
+                            text = data.decode('utf-8', 'replace')
                             current_text = output_buffer.text
-                            lines = (current_text + line).split('\n')
+                            lines = (current_text + text).split('\n')
                             if len(lines) > 200:
                                 current_text = "\n".join(lines[-200:])
                             else:
-                                current_text = current_text + line
+                                current_text = current_text + text
                                 
                             output_buffer.document = Document(text=current_text, cursor_position=len(current_text))
                             try:
                                 app.invalidate()
                             except: pass
+                        except Exception:
+                            break
                             
                 threading.Thread(target=read_stdout, daemon=True).start()
                 
