@@ -1,68 +1,73 @@
 #  Kishi Shell (v1.9.1)
 
-Kishi Shell is a next-generation command-line interface built 100% in Python. Without relying on external C or Go binaries, it transforms your standard terminal experience into a fully-fledged **Terminal Operating System Interface (TUI)**. It combines traditional Bash syntax with modern *IDE (Code Editor)* and *System Monitor* capabilities natively out of the box.
+Kishi Shell is a next-generation command line developed 100% in Python that transforms into a full-fledged **Terminal User Interface (TUI) Operating System** without requiring any external software (Go, C) or plugins. It combines the traditional Bash command set with modern *IDE (Code Editor)* and *System Monitor* features.
 
-##  Installation
-Install Kishi Shell system-wide using pip:
+##  Installation & Running
+Use pip to install Kishi Shell on your system:
 ```bash
 pip install --upgrade kishi-shell
 ```
-Type `kishi` in your terminal to enter a whole new world!
+Type `kishi` in the terminal and enter a whole new world!
 
 ---
 
 ##  Advanced Visual Interfaces (TUI)
-Kishi Shell completely negates the need to install third-party tools like Midnight Commander or `htop`. It ships with zero-latency, 100% Python-rendered visual tools.
+Kishi Shell doesn't make you install Midnight Commander or `top`/`htop`. It has its own zero-latency tools rendered 100% in Python.
 
-### 1-) Dual-Pane IDE (File Explorer)
-Stop reading files in a plain black screen.
-- **Command:** `explore` (or shortcut **`Ctrl + E`**)
-Kishi splits the screen into two. On the left, it generates a smart **Directory Tree** that you can navigate using arrow keys (It automatically identifies Python, Text, and Media files with `[PY]`, `[TXT]`, `[VID]` tags).
-- If you hover over a file and press **`Tab`**, the right panel instantly transforms into a **Fully Functional Text Editor** powered by `prompt_toolkit`.
-- The editor works right out of the box! You can instantly type, write your code, and view line numbers on the left margin. Standard keyboard mappings intuitively apply natively.
-- You can save your edits instantly using **`Ctrl + S`** and quit the interface by pressing **`Q`**.
-
-### 2-) System Monitor (Dashboard)
-Monitor your computer's heart in real-time.
+### 1-) VSCode-like Unified IDE & Dashboard
+No more reading files on a plain black screen! Kishi Shell doesn't make you install Midnight Commander or `top`/`htop`. It merges both into a perfect VSCode-like layout.
 - **Command:** `dashboard`
-Running entirely isolated on a Background Daemon Thread, this monitor visualizes your CPU Core Utilization, RAM / SWAP Metrics, Root Storage, and Live Network Traffic (Down/Up). Thanks to its asynchronous architecture, your terminal will never suffer input lag while the dashboard is running.
+Running isolated in the background, this system displays CPU Core Usage, RAM / SWAP Metrics, Root Disk space, and Live Network Traffic (Down/Up) in side panels. 
+![Dashboard UI](assets/dashboard.png)
 
-### 3-) Fuzzy History Search
-No need to install FZF externally to search your bash history.
+- When you press **`Ctrl + E`**, the massive terminal in the center instantly transforms into a **Dual-Panel IDE (Development Environment)**. The screen splits from the top into two sections, placing the Folder Tree on the left and the Code Editor on the right. The bottom section remains as the Kishi Terminal.
+- You can navigate between panels using the **`Tab`** key, creating a perfect cycle between Tree -> Editor -> Terminal -> Input Line.
+- Write your code and save it instantly with **`Ctrl + S`**. 
+![IDE Layout](assets/ide_layout.png)
+
+### 2-) Interactive Terminal & Directory Synchronization
+The Kishi Terminal at the bottom of the screen works in live sync with the Folder Tree! 
+- When you type `cd` in the command line to change directories, the Tree updates automatically.
+- When you run long-running Python or Bash scripts that wait for your input (like `input()`), the interface never freezes! Thanks to background binary streaming, command outputs are printed directly to the interface, and inputs you type in the command line at the bottom are forwarded directly to the code's `stdin` input.
+![Interactive Terminal](assets/interactive_terminal.png)
+
+### 3-) History Search (Fuzzy Search)
+No need to install external FZF to find your old commands.
 - **Shortcut:** **`Ctrl + R`**
-As you type, Kishi filters thousands of your past commands using advanced fuzzy-logic string matching and brings your target command directly to your screen in milliseconds. Press `Enter` to select and run.
+As you type like a typewriter, it performs character matching among thousands of your old commands and brings the desired command to your screen in seconds. Press `Enter` to pull the command.
 
 ---
 
 ##  Scripting and Environment Variables
 
-### Assigning Variables (`export`)
-You can define new environment variables directly inside Kishi so that native OS binaries can inherit them.
+### Setting and Reading Variables (`export`)
+You can define new variables in the Kishi environment that other programs can also read.
 ```bash
 Kishi$ -> export MY_KEY="12345"
 Kishi$ -> echo $MY_KEY
 12345
 ```
-Simply type `unset MY_KEY` to wipe it. If you type `export` without any arguments, Kishi will print out all currently loaded environment variables.
+Simply type `unset MY_KEY` to remove it. You can list all loaded variables in the environment by just typing `export`.
 
-### Build Your Own Commands (`myfunc`)
-If you constantly repeat specific tasks, you can deploy your own Sub-Routines (Functions) straight into Kishi's memory:
+### Create Your Own Commands (`myfunc`)
+If you keep repeating a task, you can instantly teach Kishi code blocks (Sub-Routines). Defining functions is very easy:
 
 ```bash
-Kishi$ -> hello() { echo "Welcome to the system $USER"; ls -l; }
-Kishi$ -> hello
-Welcome to the system ozhangebesoglu
+Kishi$ -> greet() { echo "Welcome to the System $USER"; ls -l; }
+Kishi$ -> greet
+Welcome to the System ozhangebesoglu
 drwxrwxr-x 2 user user 4096 ...
 ```
-You can chain multiple complex functions, pipe their outputs (`|`), use logical chains (`&&`), or even deploy standard redirectors (`>`, `>>`) all within Kishi's powerful Abstract Syntax Tree engine.
+You can chain functions with semicolons (`;`) and run massive automation scripts in a single line. Moreover, you can squeeze complex Shell operators like `|`, `&&`, `>`, `>>` in between your commands and outputs!
 
 ---
 
 ##  Help Center (`help`)
-Kishi acts as a co-pilot. If you ever forget how to use the IDE or declare variables:
-- For comprehensive manual: `help`
-- For a quick shortcut cheat-sheet: `help less`
+Kishi always assists you. If you want to remember all system features and command tips:
+- For Comprehensive (Full) Help: `help`
+- For Quick Shortcut Summaries: `help less`
+is all you need to type.
 
 ---
 **Developed by:** Ozhan Gebesoglu  
-*Engineered to push the limits of Python in the Terminal environment.*
+*Designed to push the limits of Python in the Terminal.*
