@@ -13,6 +13,7 @@ from prompt_toolkit.widgets import Frame
 from prompt_toolkit.styles import Style
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
+from prompt_toolkit.layout.margins import ScrollbarMargin
 
 def generate_bar(percentage, width=15):
     filled = int(width * percentage / 100)
@@ -136,7 +137,7 @@ def kishi_dashboard(args):
     input_buffer = Buffer(multiline=False)
     
     center_col = HSplit([
-        Frame(Window(content=BufferControl(buffer=output_buffer, focusable=False), wrap_lines=True), title="[ Kishi Terminal ]"),
+        Frame(Window(content=BufferControl(buffer=output_buffer, focusable=True), wrap_lines=True, right_margins=[ScrollbarMargin(display_arrows=True)], always_hide_cursor=True), title="[ Kishi Terminal ]"),
         Frame(Window(content=BufferControl(buffer=input_buffer), height=1), title="[ Command Line ]", style="class:input_frame")
     ])
     
@@ -146,7 +147,7 @@ def kishi_dashboard(args):
         right_col
     ])
     
-    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute Command | [Ctrl+C] Quit ")]))
+    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute Command | [Tab] Switch Panel | [Ctrl+C] Quit ")]))
     layout = Layout(HSplit([header, body]), focused_element=input_buffer)
     
     kb = KeyBindings()
@@ -155,7 +156,14 @@ def kishi_dashboard(args):
     def _(event):
         event.app.exit(result=0)
         
-    @kb.add("enter")
+    @kb.add("tab")
+    def toggle_focus(event):
+        if layout.has_focus(input_buffer):
+            layout.focus(output_buffer)
+        else:
+            layout.focus(input_buffer)
+            
+    @kb.add("enter", filter=has_focus(input_buffer))
     def execute_cmd(event):
         cmd = input_buffer.text.strip()
         input_buffer.text = ""
@@ -184,8 +192,8 @@ def kishi_dashboard(args):
             
         # Limit output buffer length to prevent UI lag from massive text blocks
         lines = new_text.split('\n')
-        if len(lines) > 50:
-            new_text = "\n".join(lines[-50:])
+        if len(lines) > 200:
+            new_text = "\n".join(lines[-200:])
             
         output_buffer.document = Document(
             text=new_text,
