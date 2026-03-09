@@ -186,8 +186,14 @@ def kishi_dashboard(args):
             elif cmd == "clear":
                 new_text = ""
             else:
-                out = subprocess.getoutput(cmd)
-                new_text += out + "\n"
+                try:
+                    res = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=3.0)
+                    out = res.stdout + res.stderr
+                    if not out.strip() and res.returncode != 0:
+                        out = f"[Exited with code {res.returncode}]"
+                    new_text += out + "\n"
+                except subprocess.TimeoutExpired:
+                    new_text += "[ERR] Command timed out (3s). Interactive/infinite commands (like cava) are not supported here.\n"
         except Exception as e:
             new_text += f"Error: {e}\n"
             
