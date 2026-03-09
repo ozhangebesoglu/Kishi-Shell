@@ -137,6 +137,11 @@ def kishi_dashboard(args):
     from prompt_toolkit.filters import Condition
     from prompt_toolkit.key_binding import merge_key_bindings
 
+    output_buffer = Buffer(multiline=True)
+    output_buffer.text = " [KISHI] Kishi Shell Dashboard Command Center\n =====================================\n - Type 'exit' or 'q' to return to normal shell.\n - You can execute fast read-only commands here.\n\n"
+    
+    input_buffer = Buffer(multiline=False)
+
     show_explorer = False
     explorer = ExplorerUI(os.getcwd(), standalone=False)
     
