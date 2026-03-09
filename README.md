@@ -1,4 +1,4 @@
-#  Kishi Shell (v1.8.0)
+#  Kishi Shell (v1.9.1)
 
 Kishi Shell is a next-generation command-line interface built 100% in Python. Without relying on external C or Go binaries, it transforms your standard terminal experience into a fully-fledged **Terminal Operating System Interface (TUI)**. It combines traditional Bash syntax with modern *IDE (Code Editor)* and *System Monitor* capabilities natively out of the box.
 
