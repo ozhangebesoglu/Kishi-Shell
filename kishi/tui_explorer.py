@@ -134,9 +134,11 @@ class ExplorerState:
 
 class ExplorerUI:
     """Handles prompt_toolkit layouts and interactions (View & Controller)."""
-    def __init__(self, start_dir):
+    def __init__(self, start_dir, standalone=True):
         self.state = ExplorerState(start_dir)
         self.editor_buffer = Buffer(multiline=True)
+        self.standalone = standalone
+        self.kb = KeyBindings()
         self.setup_ui()
         self.update_preview()
 
@@ -207,14 +209,14 @@ class ExplorerUI:
         return result
 
     def setup_ui(self):
-        self.left_window = Window(content=FormattedTextControl(text=self.get_left_text, focusable=True), wrap_lines=False, width=45)
+        self.left_window = Window(content=FormattedTextControl(text=self.get_left_text, focusable=True), wrap_lines=False, width=35)
         self.right_window = Window(
             content=BufferControl(buffer=self.editor_buffer, focusable=True), 
             wrap_lines=True,
             left_margins=[NumberedMargin(display_tildes=True)]
         )
         
-        body = VSplit([
+        self.container = VSplit([
             self.left_window,
             Window(width=1, char='│', style='class:line'),
             self.right_window
@@ -227,26 +229,29 @@ class ExplorerUI:
             return [("class:header", text)]
             
         header = Window(height=1, content=FormattedTextControl(text=get_header))
-        self.layout = Layout(HSplit([header, body]), focused_element=self.left_window)
+        self.layout = Layout(HSplit([header, self.container]), focused_element=self.left_window)
         
-        kb = KeyBindings()
+        kb = self.kb
         left_focused = has_focus(self.left_window)
+        right_focused = has_focus(self.right_window)
+        explorer_focused = left_focused | right_focused
         
         @kb.add("q", filter=left_focused)
         @kb.add("Q", filter=left_focused)
-        @kb.add("c-c")
+        @kb.add("c-c", filter=left_focused)
         def exit_app(event):
-            event.app.exit()
+            if self.standalone:
+                event.app.exit()
             
-        @kb.add("tab")
-        @kb.add("escape")
+        @kb.add("tab", filter=explorer_focused)
+        @kb.add("escape", filter=explorer_focused)
         def toggle_focus(event):
-            if self.layout.has_focus(self.left_window):
-                self.layout.focus(self.right_window)
+            if event.app.layout.has_focus(self.left_window):
+                event.app.layout.focus(self.right_window)
             else:
-                self.layout.focus(self.left_window)
+                event.app.layout.focus(self.left_window)
                 
-        @kb.add("c-s")
+        @kb.add("c-s", filter=explorer_focused)
         def save_file(event):
             self.save_current_file()
             
@@ -268,7 +273,7 @@ class ExplorerUI:
                 if self.state.enter_directory():
                     self.update_preview()
             else:
-                self.layout.focus(self.right_window)
+                event.app.layout.focus(self.right_window)
                 
         @kb.add("backspace", filter=left_focused)
         @kb.add("left", filter=left_focused)
@@ -279,7 +284,8 @@ class ExplorerUI:
         @kb.add("space", filter=left_focused)
         def select_and_exit(event):
             os.chdir(self.state.current_dir)
-            event.app.exit()
+            if self.standalone:
+                event.app.exit()
 
         style = Style.from_dict({
             "header": "bg:#00aa00 #ffffff bold",
@@ -289,15 +295,17 @@ class ExplorerUI:
             "line": "ansidarkgray"
         })
 
-        self.app = Application(
-            layout=self.layout,
-            key_bindings=kb,
-            style=style,
-            full_screen=True,
-            editing_mode=EditingMode.EMACS
-        )
+        if self.standalone:
+            self.app = Application(
+                layout=self.layout,
+                key_bindings=kb,
+                style=style,
+                full_screen=True,
+                editing_mode=EditingMode.EMACS
+            )
 
     def run(self):
+        if not self.standalone: return 0
         try:
             import asyncio
             try:

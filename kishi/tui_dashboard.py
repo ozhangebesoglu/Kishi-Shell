@@ -132,24 +132,36 @@ def kishi_dashboard(args):
         Frame(Window(content=FormattedTextControl(text=get_net_info)), title="[ Storage & Net ]")
     ], width=28)
     
-    output_buffer = Buffer(multiline=True)
-    output_buffer.text = " [KISHI] Kishi Shell Dashboard Command Center\n =====================================\n - Type 'exit' or 'q' to return to normal shell.\n - You can execute fast read-only commands here.\n\n"
+    from kishi.tui_explorer import ExplorerUI
+    from prompt_toolkit.layout.containers import ConditionalContainer
+    from prompt_toolkit.filters import Condition
+    from prompt_toolkit.key_binding import merge_key_bindings
+
+    show_explorer = False
+    explorer = ExplorerUI(os.getcwd(), standalone=False)
     
-    input_buffer = Buffer(multiline=False)
-    
+    out_win = Window(content=BufferControl(buffer=output_buffer, focusable=True), wrap_lines=True, right_margins=[ScrollbarMargin(display_arrows=True)], always_hide_cursor=True)
+    in_win = Window(content=BufferControl(buffer=input_buffer), height=1)
+
     center_col = HSplit([
-        Frame(Window(content=BufferControl(buffer=output_buffer, focusable=True), wrap_lines=True, right_margins=[ScrollbarMargin(display_arrows=True)], always_hide_cursor=True), title="[ Kishi Terminal ]"),
-        Frame(Window(content=BufferControl(buffer=input_buffer), height=1), title="[ Command Line ]", style="class:input_frame")
+        Frame(out_win, title="[ Kishi Terminal ]"),
+        Frame(in_win, title="[ Command Line ]", style="class:input_frame")
     ])
+    
+    explorer_col = ConditionalContainer(
+        content=Frame(explorer.container, title="[ IDE Explorer ]"),
+        filter=Condition(lambda: show_explorer)
+    )
     
     body = VSplit([
         left_col,
+        explorer_col,
         center_col,
         right_col
     ])
     
-    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute Command | [Tab] Switch Panel | [Ctrl+C] Quit ")]))
-    layout = Layout(HSplit([header, body]), focused_element=input_buffer)
+    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute | [Tab] Switch | [Ctrl+E] Explorer | [Ctrl+C] Quit ")]))
+    layout = Layout(HSplit([header, body]), focused_element=in_win)
     
     kb = KeyBindings()
     
@@ -157,12 +169,30 @@ def kishi_dashboard(args):
     def _(event):
         event.app.exit(result=0)
         
+    @kb.add("c-e")
+    def toggle_explorer(event):
+        nonlocal show_explorer
+        show_explorer = not show_explorer
+        if show_explorer:
+            layout.focus(explorer.left_window)
+        else:
+            if layout.has_focus(explorer.left_window) or layout.has_focus(explorer.right_window):
+                layout.focus(in_win)
+
     @kb.add("tab")
     def toggle_focus(event):
-        if layout.has_focus(input_buffer):
-            layout.focus(output_buffer)
+        if layout.has_focus(in_win):
+            layout.focus(out_win)
+        elif layout.has_focus(out_win):
+            if show_explorer:
+                layout.focus(explorer.left_window)
+            else:
+                layout.focus(in_win)
         else:
-            layout.focus(input_buffer)
+            layout.focus(in_win)
+            
+    # Include explorer's standalone keybindings cleanly.
+    combined_kb = merge_key_bindings([kb, explorer.kb])
             
     @kb.add("enter", filter=has_focus(input_buffer))
     def execute_cmd(event):
@@ -218,7 +248,7 @@ def kishi_dashboard(args):
     
     app = Application(
         layout=layout,
-        key_bindings=kb,
+        key_bindings=combined_kb,
         style=style,
         full_screen=True,
         refresh_interval=2.5,
