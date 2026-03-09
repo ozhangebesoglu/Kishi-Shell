@@ -144,6 +144,7 @@ def kishi_dashboard(args):
 
     show_explorer = False
     explorer = ExplorerUI(os.getcwd(), standalone=False)
+    running_process = None
     
     out_win = Window(content=BufferControl(buffer=output_buffer, focusable=True), wrap_lines=True, right_margins=[ScrollbarMargin(display_arrows=True)], always_hide_cursor=True)
     in_win = Window(content=BufferControl(buffer=input_buffer), height=1)
@@ -208,8 +209,22 @@ def kishi_dashboard(args):
             
     @kb.add("enter", filter=has_focus(input_buffer))
     def execute_cmd(event):
+        nonlocal running_process
         cmd = input_buffer.text.strip()
         input_buffer.text = ""
+        
+        # If a process is already interactive, forward input to its stdin
+        if running_process and running_process.poll() is None:
+            try:
+                running_process.stdin.write(cmd + "\n")
+                running_process.stdin.flush()
+                # Echo the user's input directly into the terminal
+                new_text = output_buffer.text + f"{cmd}\n"
+                output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
+            except Exception as e:
+                pass
+            return
+
         if not cmd: return
         
         if cmd.lower() in ("exit", "quit", "q"):
@@ -218,36 +233,56 @@ def kishi_dashboard(args):
             
         # Append Command
         new_text = output_buffer.text + f"\nKishi$ -> {cmd}\n"
+        output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
         
         try:
+            cwd = explorer.state.current_dir
             if cmd.startswith("cd "):
                 target = cmd.split(" ", 1)[1]
                 path = os.path.expanduser(target)
+                if not os.path.isabs(path):
+                    path = os.path.join(cwd, path)
                 os.chdir(path)
-                new_text += f"[DIR] Directory changed: {os.getcwd()}\n"
+                explorer.state.current_dir = os.getcwd()
+                explorer.state.refresh()
+                explorer.update_preview()
+                new_text = output_buffer.text + f"[DIR] Changed to: {os.getcwd()}\n"
+                output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
             elif cmd == "clear":
-                new_text = ""
+                output_buffer.text = ""
             else:
-                try:
-                    res = subprocess.run(cmd, shell=True, text=True, capture_output=True, timeout=3.0)
-                    out = res.stdout + res.stderr
-                    if not out.strip() and res.returncode != 0:
-                        out = f"[Exited with code {res.returncode}]"
-                    new_text += out + "\n"
-                except subprocess.TimeoutExpired:
-                    new_text += "[ERR] Command timed out (3s). Interactive/infinite commands (like cava) are not supported here.\n"
+                # Launch custom background interactive process
+                running_process = subprocess.Popen(
+                    cmd, shell=True, cwd=cwd,
+                    stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                    text=True, bufsize=1, env={**os.environ, "PYTHONUNBUFFERED": "1"}
+                )
+                
+                # Setup daemon thread to stream output back to the UI
+                def read_stdout():
+                    while True:
+                        line = running_process.stdout.readline()
+                        if not line and running_process.poll() is not None:
+                            break
+                        if line:
+                            # Appending UI in a thread-safe-ish way for prompt_toolkit
+                            current_text = output_buffer.text
+                            lines = (current_text + line).split('\n')
+                            if len(lines) > 200:
+                                current_text = "\n".join(lines[-200:])
+                            else:
+                                current_text = current_text + line
+                                
+                            output_buffer.document = Document(text=current_text, cursor_position=len(current_text))
+                            try:
+                                app.invalidate()
+                            except: pass
+                            
+                threading.Thread(target=read_stdout, daemon=True).start()
+                
         except Exception as e:
-            new_text += f"Error: {e}\n"
-            
-        # Limit output buffer length to prevent UI lag from massive text blocks
-        lines = new_text.split('\n')
-        if len(lines) > 200:
-            new_text = "\n".join(lines[-200:])
-            
-        output_buffer.document = Document(
-            text=new_text,
-            cursor_position=len(new_text)
-        )
+            new_text = output_buffer.text + f"Error: {e}\n"
+            output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
         
     style = Style.from_dict({
         "header": "bg:#dd4400 #ffffff bold",
