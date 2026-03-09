@@ -14,6 +14,7 @@ from prompt_toolkit.styles import Style
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.layout.margins import ScrollbarMargin
+from prompt_toolkit.filters import has_focus
 
 def generate_bar(percentage, width=15):
     filled = int(width * percentage / 100)
