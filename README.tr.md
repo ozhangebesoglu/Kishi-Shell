@@ -14,18 +14,22 @@ Terminale `kishi` yazın ve yepyeni bir dünyaya giriş yapın!
 ##  İleri Düzey Görsel Arayüzler (TUI)
 Kishi Shell size Midnight Commander veya `top`/`htop` indirtmez. Kendi içerisinde %100 Python ile renderladığı sıfır-gecikmeli araçlara sahiptir.
 
-### 1-) Çift Panelli IDE (File Explorer)
-Dümdüz kara ekranda dosya okumaya son.
-- **Komut:** `explore` (veyahut kısayol **`Ctrl + E`**)
-Kishi ekranı ikiye böler. Sol tarafta klavye yön tuşlarıyla gezebileceğiniz akıllı bir **Klasör Ağacı** oluşturur (Python, Txt ve Medya dosyalarını emojilerle tanır ).
-- Düzenlemek istediğiniz dosyanın üzerine gelip **`Tab`** tuşuna basarsanız, sağdaki panel bir anda **Tam Fonksiyonel Text Editörüne** dönüşür! 
-- Kodunuzu yazar, VIM formatlı satır sayılarını görür ve **`Ctrl + S`** ile saniyede kaydedersiniz. 
-- Çıkmak için **`Q`** ya basabilirsiniz.
-
-### 2-) Sistem Monitörü (Dashboard)
-Bilgisayarınızın kalbini anında izleyin.
+### 1-) VSCode-like Unified IDE & Dashboard
+Dümdüz kara ekranda dosya okumaya son! Kishi Shell size Midnight Commander veya `top`/`htop` indirtmez. İkisini mükemmel bir VSCode düzeninde birleştirir.
 - **Komut:** `dashboard`
-Arka planda (Background Daemon Thread) izole olarak çalışan bu monitör; size CPU Çekirdek Kullanımını, RAM / SWAP Metriklerini, Root Disk alanını ve Canlı Ağ (Network Down/Up) Trafiğini gösterir. Kesinlikle lag ve donma yapmaz; akıp giden bir terminal deneyimi sunar.
+Arka planda izole olarak çalışan bu sistem; CPU Çekirdek Kullanımını, RAM / SWAP Metriklerini, Root Disk alanını ve Canlı Ağ Trafiğini (Down/Up) yan panellerde gösterir. 
+![Dashboard UI](assets/dashboard.png)
+
+- **`Ctrl + E`** tuşuna bastığınızda, ortadaki devasa terminal anında **Çift Panelli bir IDE'ye (Geliştirme Ortamı)** dönüşür. Ekran üst bölümden ikiye bölünerek Sol tarafa Klasör Ağacını (Tree), Sağ tarafa Kod Editörünü yerleştirir. Alt kısım Kishi Terminali olarak kalır.
+- Paneller arası gezinmek için **`Tab`** tuşunu kullanarak Ağaç -> Editör -> Terminal -> Girdi Satırı arasında mükemmel bir döngü kurabilirsiniz.
+- Kodunuzu yazar, **`Ctrl + S`** ile saniyede kaydedersiniz. 
+![IDE Layout](assets/ide_layout.png)
+
+### 2-) İnteraktif Terminal & Dizin Senkronizasyonu
+Ekranın altındaki Kishi Terminali, Klasör Ağacıyla canlı senkronize çalışır! 
+- Komut satırına `cd` yazıp klasör değiştirdiğinizde Ağaç da otomatik güncellenir.
+- `input()` gibi sizden veri bekleyen uzun soluklu Python veya Bash scriptlerini çalıştırdığınızda arayüz asla donmaz! Arka plan ikili veri akışı (binary streaming) sayesinde komut çıkıntıları direkt arayüze basılır ve en alttaki komut satırından yazdığınız girdiler doğrudan kodun `stdin` girişine yönlendirilir.
+![Interactive Terminal](assets/interactive_terminal.png)
 
 ### 3-) Tarihçe Arama (Fuzzy Search)
 Eski komutlarınızı bulmak için harici FZF kurmanıza gerek yok.
