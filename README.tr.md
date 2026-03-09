@@ -1,8 +1,8 @@
-# 🚀 Kishi Shell (v1.7.6)
+#  Kishi Shell (v1.7.6)
 
 Kishi Shell, %100 Python ile geliştirilmiş, harici yazılım (Go, C) veya eklenti gerektirmeden tam teşekküllü bir **Terminal İşletim Sistemi Arayüzüne (TUI)** dönüşen yeni nesil komut satırıdır. Geleneksel Bash komut setini modern *IDE (Kod Editörü)* ve *Sistem Monitörü* özellikleriyle birleştirir.
 
-## 📥 Kurulum & Çalıştırma
+##  Kurulum & Çalıştırma
 Sisteminize Kishi Shell kurmak için pip aracını kullanın:
 ```bash
 pip install --upgrade kishi-shell
@@ -11,13 +11,13 @@ Terminale `kishi` yazın ve yepyeni bir dünyaya giriş yapın!
 
 ---
 
-## 🔥 İleri Düzey Görsel Arayüzler (TUI)
+##  İleri Düzey Görsel Arayüzler (TUI)
 Kishi Shell size Midnight Commander veya `top`/`htop` indirtmez. Kendi içerisinde %100 Python ile renderladığı sıfır-gecikmeli araçlara sahiptir.
 
 ### 1-) Çift Panelli IDE (File Explorer)
 Dümdüz kara ekranda dosya okumaya son.
 - **Komut:** `explore` (veyahut kısayol **`Ctrl + E`**)
-Kishi ekranı ikiye böler. Sol tarafta klavye yön tuşlarıyla gezebileceğiniz akıllı bir **Klasör Ağacı** oluşturur (Python, Txt ve Medya dosyalarını emojilerle tanır 🐍📝🎵).
+Kishi ekranı ikiye böler. Sol tarafta klavye yön tuşlarıyla gezebileceğiniz akıllı bir **Klasör Ağacı** oluşturur (Python, Txt ve Medya dosyalarını emojilerle tanır ).
 - Düzenlemek istediğiniz dosyanın üzerine gelip **`Tab`** tuşuna basarsanız, sağdaki panel bir anda **Tam Fonksiyonel Text Editörüne** dönüşür! 
 - Kodunuzu yazar, VIM formatlı satır sayılarını görür ve **`Ctrl + S`** ile saniyede kaydedersiniz. 
 - Çıkmak için **`Q`** ya basabilirsiniz.
@@ -34,7 +34,7 @@ Daktilo gibi tuşlara bastıkça binlerce eski komutunuz arasından karakter eş
 
 ---
 
-## 💻 Scripting ve Çevre Değişkenleri (Environment)
+##  Scripting ve Çevre Değişkenleri (Environment)
 
 ### Değişken Atamak ve Okumak (`export`)
 Kishi ortamına diğer programların da okuyabilmesi için yeni değişkenler tanımlayabilirsiniz.
@@ -58,7 +58,7 @@ Fonksiyonları ard arda noktalı virgül (`;`) ile zincirleyebilir, tek satırda
 
 ---
 
-## 🙋‍♂️ Yardım Merkezi (`help`)
+##  Yardım Merkezi (`help`)
 Kishi her zaman size asistanlık yapar. Sisteme ait tüm özellikleri ve komut ipuçlarını hatırlamak isterseniz:
 - Kapsamlı (Tam) Yardım İçin: `help`
 - Hızlıca Kısayol Özetleri İçin: `help less`

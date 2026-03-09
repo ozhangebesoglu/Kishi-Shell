@@ -243,13 +243,14 @@ class ExplorerUI:
             if self.standalone:
                 event.app.exit()
             
-        @kb.add("tab", filter=explorer_focused)
-        @kb.add("escape", filter=explorer_focused)
-        def toggle_focus(event):
-            if event.app.layout.has_focus(self.left_window):
-                event.app.layout.focus(self.right_window)
-            else:
-                event.app.layout.focus(self.left_window)
+        if self.standalone:
+            @kb.add("tab", filter=explorer_focused)
+            @kb.add("escape", filter=explorer_focused)
+            def toggle_focus(event):
+                if event.app.layout.has_focus(self.left_window):
+                    event.app.layout.focus(self.right_window)
+                else:
+                    event.app.layout.focus(self.left_window)
                 
         @kb.add("c-s", filter=explorer_focused)
         def save_file(event):

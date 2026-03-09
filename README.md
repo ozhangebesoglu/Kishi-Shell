@@ -1,8 +1,8 @@
-# 🚀 Kishi Shell (v1.8.0)
+#  Kishi Shell (v1.8.0)
 
 Kishi Shell is a next-generation command-line interface built 100% in Python. Without relying on external C or Go binaries, it transforms your standard terminal experience into a fully-fledged **Terminal Operating System Interface (TUI)**. It combines traditional Bash syntax with modern *IDE (Code Editor)* and *System Monitor* capabilities natively out of the box.
 
-## 📥 Installation
+##  Installation
 Install Kishi Shell system-wide using pip:
 ```bash
 pip install --upgrade kishi-shell
@@ -11,7 +11,7 @@ Type `kishi` in your terminal to enter a whole new world!
 
 ---
 
-## 🔥 Advanced Visual Interfaces (TUI)
+##  Advanced Visual Interfaces (TUI)
 Kishi Shell completely negates the need to install third-party tools like Midnight Commander or `htop`. It ships with zero-latency, 100% Python-rendered visual tools.
 
 ### 1-) Dual-Pane IDE (File Explorer)
@@ -34,7 +34,7 @@ As you type, Kishi filters thousands of your past commands using advanced fuzzy-
 
 ---
 
-## 💻 Scripting and Environment Variables
+##  Scripting and Environment Variables
 
 ### Assigning Variables (`export`)
 You can define new environment variables directly inside Kishi so that native OS binaries can inherit them.
@@ -58,7 +58,7 @@ You can chain multiple complex functions, pipe their outputs (`|`), use logical 
 
 ---
 
-## 🙋‍♂️ Help Center (`help`)
+##  Help Center (`help`)
 Kishi acts as a co-pilot. If you ever forget how to use the IDE or declare variables:
 - For comprehensive manual: `help`
 - For a quick shortcut cheat-sheet: `help less`

@@ -148,19 +148,19 @@ def kishi_dashboard(args):
     out_win = Window(content=BufferControl(buffer=output_buffer, focusable=True), wrap_lines=True, right_margins=[ScrollbarMargin(display_arrows=True)], always_hide_cursor=True)
     in_win = Window(content=BufferControl(buffer=input_buffer), height=1)
 
-    center_col = HSplit([
-        Frame(out_win, title="[ Kishi Terminal ]"),
-        Frame(in_win, title="[ Command Line ]", style="class:input_frame")
-    ])
-    
     explorer_col = ConditionalContainer(
         content=Frame(explorer.container, title="[ IDE Explorer ]"),
         filter=Condition(lambda: show_explorer)
     )
+
+    center_col = HSplit([
+        explorer_col,
+        Frame(out_win, title="[ Kishi Terminal ]"),
+        Frame(in_win, title="[ Command Line ]", style="class:input_frame")
+    ])
     
     body = VSplit([
         left_col,
-        explorer_col,
         center_col,
         right_col
     ])
@@ -177,12 +177,15 @@ def kishi_dashboard(args):
     @kb.add("c-e")
     def toggle_explorer(event):
         nonlocal show_explorer
-        show_explorer = not show_explorer
-        if show_explorer:
+        if not show_explorer:
+            show_explorer = True
             layout.focus(explorer.left_window)
         else:
-            if layout.has_focus(explorer.left_window) or layout.has_focus(explorer.right_window):
+            if layout.has_focus(explorer.left_window):
+                show_explorer = False
                 layout.focus(in_win)
+            else:
+                layout.focus(explorer.left_window)
 
     @kb.add("tab")
     def toggle_focus(event):
@@ -193,6 +196,10 @@ def kishi_dashboard(args):
                 layout.focus(explorer.left_window)
             else:
                 layout.focus(in_win)
+        elif layout.has_focus(explorer.left_window):
+            layout.focus(explorer.right_window)
+        elif layout.has_focus(explorer.right_window):
+            layout.focus(in_win)
         else:
             layout.focus(in_win)
             
