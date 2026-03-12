@@ -9,6 +9,7 @@ from kishi.executor import process_command_line
 from kishi.job_control import JobManager
 
 def load_rc_file():
+    startup_cmds = []
     rc_path = os.path.join(os.environ.get("HOME", "/"), ".kishirc")
     if not os.path.exists(rc_path):
         try:
@@ -17,7 +18,7 @@ def load_rc_file():
                 f.write("alias ll='ls -la'\n")
                 f.write("alias h='history'\n")
         except: pass
-        return
+        return startup_cmds
 
     try:
         with open(rc_path, "r") as f:
@@ -40,8 +41,12 @@ def load_rc_file():
                             return os.environ.get(m.group(1), "")
                         val = re.sub(r'\$([A-Za-z0-9_]+)', replacer, val)
                         os.environ[name] = val
+                else:
+                    startup_cmds.append(line)
     except Exception as e:
         print(f"Warning: Could not read .kishirc - {e}")
+        
+    return startup_cmds
 
 def load_plugins():
     import importlib.util
@@ -98,8 +103,12 @@ def main():
     except Exception as e:
         print("Failed to load prompt_toolkit:", e)
         
-    load_rc_file()
+    startup_cmds = load_rc_file()
     load_plugins()
+    
+    # Execute startup commands from .kishirc
+    for cmd in startup_cmds:
+        process_command_line(cmd)
     
     print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v2.0.0){state.COLOR_RESET}")
     print("Type 'help' for the command guide.")
