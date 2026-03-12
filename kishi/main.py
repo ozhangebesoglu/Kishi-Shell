@@ -97,7 +97,7 @@ def main():
     load_rc_file()
     load_plugins()
     
-    print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v1.9.9){state.COLOR_RESET}")
+    print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v2.0.0){state.COLOR_RESET}")
     print("Type 'help' for the command guide.")
 
     while True:
