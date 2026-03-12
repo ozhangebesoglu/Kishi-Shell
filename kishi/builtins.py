@@ -638,7 +638,15 @@ def kishi_neofetch(args):
         pass
 
     cpu = platform.processor() or "Unknown"
-
+    if cpu == "Unknown" and os.path.exists("/proc/cpuinfo"):
+        try:
+            with open("/proc/cpuinfo", "r") as f:
+                for line in f:
+                    if line.startswith("model name"):
+                        cpu = line.split(":", 1)[1].strip()
+                        break
+        except:
+            pass
     logo = [
         f"       {COLOR_AMBER} __  __ _     _     _ {COLOR_RESET}",
         f"       {COLOR_AMBER}|  |/ /(_)___| |__ (_) {COLOR_RESET}",
@@ -656,7 +664,7 @@ def kishi_neofetch(args):
         f"{COLOR_CYAN}OS:{COLOR_RESET} {os_name}",
         f"{COLOR_CYAN}Kernel:{COLOR_RESET} {kernel}",
         f"{COLOR_CYAN}Uptime:{COLOR_RESET} {uptime}",
-        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v1.9.9",
+        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.0.1",
         f"{COLOR_CYAN}CPU:{COLOR_RESET} {cpu}",
         f"{COLOR_CYAN}Memory:{COLOR_RESET} {memory}",
     ]
