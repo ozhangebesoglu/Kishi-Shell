@@ -1,10 +1,17 @@
 #  Kishi Shell (v1.9.2)
 
+> **Bu projeyi beğendiyseniz lütfen [GitHub](https://github.com/ozhangebesoglu/Kishi-Shell)'da ⭐ yıldız verin ve [AUR](https://aur.archlinux.org/packages/kishi-shell)'da oy kullanın! Desteğiniz projenin büyümesine yardımcı olur.**
+
 Kishi Shell, %100 Python ile geliştirilmiş, harici yazılım (Go, C) veya eklenti gerektirmeden tam teşekküllü bir **Terminal İşletim Sistemi Arayüzüne (TUI)** dönüşen yeni nesil komut satırıdır. Geleneksel Bash komut setini modern *IDE (Kod Editörü)* ve *Sistem Monitörü* özellikleriyle birleştirir.
 
 ##  Kurulum & Çalıştırma
 
-### Seçenek 1: Kaynaktan Kurulum
+### Seçenek 1: AUR ile Kurulum (Arch Linux) — Önerilen
+```bash
+yay -S kishi-shell
+```
+
+### Seçenek 2: Kaynaktan Kurulum
 ```bash
 git clone https://github.com/ozhangebesoglu/Kishi-Shell.git
 cd Kishi-Shell
@@ -13,7 +20,7 @@ chmod +x install.sh
 ```
 Yükleyici önce `pip3 install .` deneyecektir. Sisteminiz PEP 668 koruması kullanıyorsa, size **sanal ortam** (önerilen) veya `--break-system-packages` seçeneği sunacaktır.
 
-### Seçenek 2: pip ile Kurulum (PyPI)
+### Seçenek 3: pip ile Kurulum (PyPI)
 ```bash
 pip install --upgrade kishi-shell
 ```

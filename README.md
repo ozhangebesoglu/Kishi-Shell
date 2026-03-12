@@ -1,10 +1,17 @@
 #  Kishi Shell (v1.9.2)
 
+> **If you like this project, please give it a ⭐ star on [GitHub](https://github.com/ozhangebesoglu/Kishi-Shell) and vote on [AUR](https://aur.archlinux.org/packages/kishi-shell)! Your support helps the project grow.**
+
 Kishi Shell is a next-generation command line developed 100% in Python that transforms into a full-fledged **Terminal User Interface (TUI) Operating System** without requiring any external software (Go, C) or plugins. It combines the traditional Bash command set with modern *IDE (Code Editor)* and *System Monitor* features.
 
 ##  Installation & Running
 
-### Option 1: Install from Source
+### Option 1: Install via AUR (Arch Linux) — Recommended
+```bash
+yay -S kishi-shell
+```
+
+### Option 2: Install from Source
 ```bash
 git clone https://github.com/ozhangebesoglu/Kishi-Shell.git
 cd Kishi-Shell
@@ -13,7 +20,7 @@ chmod +x install.sh
 ```
 The installer will try `pip3 install .` first. If your system uses PEP 668 protection, it will offer you to create a **virtual environment** (recommended) or use `--break-system-packages`.
 
-### Option 2: Install via pip (PyPI)
+### Option 3: Install via pip (PyPI)
 ```bash
 pip install --upgrade kishi-shell
 ```
