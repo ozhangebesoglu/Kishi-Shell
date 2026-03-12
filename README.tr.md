@@ -90,3 +90,7 @@ yazmanız yeterli olacaktır.
 ---
 **Geliştiren:** Ozhan Gebesoglu  
 *Python'un sınırlarını Terminal'de zorlamak için tasarlandı.*
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ozhangebesoglu/Kishi-Shell&type=Date)](https://star-history.com/#ozhangebesoglu/Kishi-Shell&Date)

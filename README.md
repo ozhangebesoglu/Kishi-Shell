@@ -90,3 +90,7 @@ is all you need to type.
 ---
 **Developed by:** Ozhan Gebesoglu  
 *Designed to push the limits of Python in the Terminal.*
+
+## Star History
+
+[![Star History Chart](https://api.star-history.com/svg?repos=ozhangebesoglu/Kishi-Shell&type=Date)](https://star-history.com/#ozhangebesoglu/Kishi-Shell&Date)
