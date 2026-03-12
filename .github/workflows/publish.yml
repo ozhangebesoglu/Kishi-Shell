@@ -56,3 +56,67 @@ jobs:
         with:
           generate_release_notes: true
 
+
+  aur-publish:
+    needs: github-release
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm git openssh curl awk sudo
+
+      - name: Set up SSH Private Key
+        env:
+          SSH_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          mkdir -p ~/.ssh
+          echo "$SSH_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          # Check key format validity locally
+          ssh-keygen -y -f ~/.ssh/aur > /dev/null
+
+      - name: Clone AUR Repo
+        env:
+          GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAcceptedKeyTypes=+ssh-ed25519 -i ~/.ssh/aur"
+        run: git clone ssh://aur@aur.archlinux.org/kishi-shell.git aur-repo
+
+      - name: Update PKGBUILD and Push
+        run: |
+          cd aur-repo
+
+          # Extract version from tag
+          VERSION="${GITHUB_REF_NAME#v}"
+          
+          # Get tarball hash
+          TARBALL_URL="https://github.com/ozhangebesoglu/Kishi-Shell/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
+          TARBALL_HASH=$(curl -sL $TARBALL_URL | sha256sum | awk '{print $1}')
+
+          # Update PKGBUILD locally
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s/^sha256sums=('.*')/sha256sums=('$TARBALL_HASH')/" PKGBUILD
+
+          # Setup builder user for makepkg
+          useradd builder -m
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          
+          # Pass the SSH key to builder user
+          mkdir -p /home/builder/.ssh
+          cp ~/.ssh/aur /home/builder/.ssh/aur
+          chown -R builder:builder /home/builder/.ssh
+          chmod 600 /home/builder/.ssh/aur
+          
+          chown -R builder:builder .
+
+          # Generate .SRCINFO as builder
+          sudo -u builder makepkg --printsrcinfo > .SRCINFO
+
+          # Git operations as builder
+          sudo -u builder git config user.name "github-actions[bot]"
+          sudo -u builder git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          sudo -u builder git add PKGBUILD .SRCINFO
+          sudo -u builder git commit -m "chore: Auto-update to ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          
+          # Force GIT_SSH_COMMAND natively for push
+          sudo -u builder GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAcceptedKeyTypes=+ssh-ed25519 -i /home/builder/.ssh/aur" git push

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kishi-shell"
-version = "1.9.8"
+version = "1.9.9"
 description = "A powerful, highly modular, Python-based modern shell."
 readme = "README.md"
 license = "GPL-3.0-only"
