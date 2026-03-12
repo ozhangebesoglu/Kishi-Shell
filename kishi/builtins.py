@@ -527,6 +527,7 @@ def kishi_plugin(args):
         print(f"{COLOR_AMBER}Kishi Plugin Manager{COLOR_RESET}")
         print("Usage:")
         print("  plugin list               : List installed plugins")
+        print("  plugin market             : Browse available plugins in the official Marketplace")
         print("  plugin install <name/url> : Install a plugin by Github Username/Repo or raw URL")
         print("  plugin remove <name>      : Uninstall a plugin")
         return 1
@@ -543,6 +544,31 @@ def kishi_plugin(args):
                 print(f"  - {p[:-3]}")
         return 0
         
+    elif action == "market" or action == "search":
+        import urllib.request
+        import json
+        from urllib.error import URLError
+        
+        url = "https://api.github.com/repos/ozhangebesoglu/Kishi-Plugins/contents/"
+        print(f"[*] Contacting Kishi Marketplace...")
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Kishi-Shell'})
+            with urllib.request.urlopen(req, timeout=5) as response:
+                data = json.loads(response.read().decode('utf-8'))
+                plugins = [item['name'][:-3] for item in data if item['name'].endswith('.py')]
+                
+                if not plugins:
+                    print("Marketplace is currently empty.")
+                else:
+                    print(f"\n{COLOR_CYAN}[+] Available Plugins in Marketplace:{COLOR_RESET}")
+                    for p in plugins:
+                        print(f"  📦 {p}")
+                    print(f"\nTip: Use 'plugin install <name>' to download.")
+                return 0
+        except Exception as e:
+            print(f"{COLOR_RED}[-] Failed to fetch marketplace data:{COLOR_RESET} {e}")
+            return 1
+            
     elif action == "install":
         if len(args) < 3:
             print("Usage: plugin install <url_or_name>")
