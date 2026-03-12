@@ -110,7 +110,7 @@ def main():
     for cmd in startup_cmds:
         process_command_line(cmd)
     
-    print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v2.0.0){state.COLOR_RESET}")
+    print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v2.0.0.1){state.COLOR_RESET}")
     print("Type 'help' for the command guide.")
 
     while True:

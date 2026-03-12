@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.0)
+#  Kishi Shell (v2.0.0.1)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
