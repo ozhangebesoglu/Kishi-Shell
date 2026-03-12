@@ -18,8 +18,8 @@ class PipelineNode(ASTNode):
 
 class LogicNode(ASTNode):
     def __init__(self, left, operator, right):
-        self.left = left # PipelineNode veya LogicNode
-        self.operator = operator # '&&' veya '||'
+        self.left = left # PipelineNode or LogicNode
+        self.operator = operator # '&&' or '||'
         self.right = right
 
 class SequenceNode(ASTNode):
@@ -52,7 +52,7 @@ class FunctionDefNode(ASTNode):
 class Parser:
     @staticmethod
     def parse(tokens):
-        """Token listesinden Recursive Inis ile Sequence/Logic/Pipeline AST'si çıkarır"""
+        """Builds a Sequence/Logic/Pipeline AST from a token list using recursive descent"""
         if not tokens: return None
         
         class TokenStream:

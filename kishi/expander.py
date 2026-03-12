@@ -5,7 +5,7 @@ from .state import LOCAL_VARS, ALIASES
 class Expander:
     @staticmethod
     def expand(arg_list):
-        """Globs (*, ?), değişkenleri ($VAR) ve komut çıktılarını ($(cmd) / `cmd`) genişletir"""
+        """Expands globs (*, ?), variables ($VAR) and command substitutions ($(cmd) / `cmd`)"""
         import re
         import subprocess
 

@@ -3,11 +3,22 @@
 Kishi Shell is a next-generation command line developed 100% in Python that transforms into a full-fledged **Terminal User Interface (TUI) Operating System** without requiring any external software (Go, C) or plugins. It combines the traditional Bash command set with modern *IDE (Code Editor)* and *System Monitor* features.
 
 ##  Installation & Running
-Use pip to install Kishi Shell on your system:
+
+### Option 1: Install from Source
+```bash
+git clone https://github.com/ozhangebesoglu/Kishi-Shell.git
+cd Kishi-Shell
+chmod +x install.sh
+./install.sh
+```
+The installer will try `pip3 install .` first. If your system uses PEP 668 protection, it will offer you to create a **virtual environment** (recommended) or use `--break-system-packages`.
+
+### Option 2: Install via pip (PyPI)
 ```bash
 pip install --upgrade kishi-shell
 ```
-Type `kishi` in the terminal and enter a whole new world!
+
+Type `kishi` in your terminal to launch Kishi Shell. Type `exit` to return to your default shell.
 
 ---
 

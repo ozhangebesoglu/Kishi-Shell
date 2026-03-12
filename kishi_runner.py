@@ -2,13 +2,13 @@
 import sys
 import os
 
-# Kishi kaynak kod dizinine isaret et
-sys.path.insert(0, "/home/ozhan/Okul/Sistem&Gorsel/VizeProjesi")
+# Point to the Kishi source directory (auto-detect installation path)
+script_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, script_dir)
 
 from kishi.main import main
 
 if __name__ == '__main__':
-    # Hata yoneticisini kapatip dogrudan cagiriyoruz
     try:
         main()
     except KeyboardInterrupt:

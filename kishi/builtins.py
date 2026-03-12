@@ -17,17 +17,17 @@ except ImportError:
 
 def kishi_cd(args):
     if len(args) < 2:
-        hedef = os.environ.get("HOME", "/")
+        target = os.environ.get("HOME", "/")
     else:
-        hedef = args[1]
+        target = args[1]
     try:
-        os.chdir(hedef)
+        os.chdir(target)
     except FileNotFoundError:
-        print(f"{COLOR_RED}OS Error:{COLOR_RESET} Directory '{hedef}' not found.")
+        print(f"{COLOR_RED}OS Error:{COLOR_RESET} Directory '{target}' not found.")
     except NotADirectoryError:
-        print(f"{COLOR_RED}OS Error:{COLOR_RESET} '{hedef}' is not a directory.")
+        print(f"{COLOR_RED}OS Error:{COLOR_RESET} '{target}' is not a directory.")
     except PermissionError:
-        print(f"{COLOR_RED}Access Denied:{COLOR_RESET} No permission to enter '{hedef}'.")
+        print(f"{COLOR_RED}Access Denied:{COLOR_RESET} No permission to enter '{target}'.")
     return 0
 
 def kishi_pwd(args):
@@ -326,7 +326,7 @@ def kishi_source(args):
         
     try:
         import subprocess
-        # Bash üzerinde source yapıp ortam değişkenlerini okuyoruz
+        # Source the script via bash and read back environment variables
         env_cmd = f"source {script_path} && env && echo '---KISHI_SEP---' && alias"
         result = subprocess.run(['bash', '-c', env_cmd], capture_output=True, text=True)
         if result.returncode != 0:
@@ -342,7 +342,7 @@ def kishi_source(args):
             if not line: continue
             if '=' in line:
                 key, val = line.split('=', 1)
-                # Kishi ortamına aktar
+                # Import into Kishi environment
                 os.environ[key] = val
                 
         for line in alias_output.splitlines():

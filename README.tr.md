@@ -3,11 +3,22 @@
 Kishi Shell, %100 Python ile geliştirilmiş, harici yazılım (Go, C) veya eklenti gerektirmeden tam teşekküllü bir **Terminal İşletim Sistemi Arayüzüne (TUI)** dönüşen yeni nesil komut satırıdır. Geleneksel Bash komut setini modern *IDE (Kod Editörü)* ve *Sistem Monitörü* özellikleriyle birleştirir.
 
 ##  Kurulum & Çalıştırma
-Sisteminize Kishi Shell kurmak için pip aracını kullanın:
+
+### Seçenek 1: Kaynaktan Kurulum
+```bash
+git clone https://github.com/ozhangebesoglu/Kishi-Shell.git
+cd Kishi-Shell
+chmod +x install.sh
+./install.sh
+```
+Yükleyici önce `pip3 install .` deneyecektir. Sisteminiz PEP 668 koruması kullanıyorsa, size **sanal ortam** (önerilen) veya `--break-system-packages` seçeneği sunacaktır.
+
+### Seçenek 2: pip ile Kurulum (PyPI)
 ```bash
 pip install --upgrade kishi-shell
 ```
-Terminale `kishi` yazın ve yepyeni bir dünyaya giriş yapın!
+
+Terminale `kishi` yazarak Kishi Shell'i başlatabilirsiniz. Çıkmak için `exit` yazmanız yeterlidir.
 
 ---
 

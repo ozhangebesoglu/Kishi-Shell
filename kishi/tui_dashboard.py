@@ -120,13 +120,13 @@ def kishi_dashboard(args):
     psutil.cpu_percent(interval=None)
     psutil.cpu_percent(interval=None, percpu=True)
     
-    # Sol Paneller (GPU, RAM)
+    # Left panels (GPU, RAM)
     left_col = HSplit([
         Frame(Window(content=FormattedTextControl(text=get_gpu_info)), title="[ GPU ]"),
         Frame(Window(content=FormattedTextControl(text=get_ram_info)), title="[ Memory & Swap ]")
     ], width=28)
     
-    # Sağ Paneller (CPU, DISK/NET)
+    # Right panels (CPU, DISK/NET)
     right_col = HSplit([
         Frame(Window(content=FormattedTextControl(text=get_cpu_info)), title="[ CPU ]"),
         Frame(Window(content=FormattedTextControl(text=get_net_info)), title="[ Storage & Net ]")

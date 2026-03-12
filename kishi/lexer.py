@@ -4,7 +4,7 @@ from prompt_toolkit.formatted_text import ANSI
 class Tokenizer:
     @staticmethod
     def tokenize(cmd_line):
-        """Metni tokenlara (argümanlar ve operatörlere) böler. Tırnak işaretlerini korur. argüman içindeki '&' ve '|' operatör sayılmaz."""
+        """Splits text into tokens (arguments and operators). Preserves quoted strings. '&' and '|' inside arguments are not treated as operators."""
         
         tokens = []
         current_token = []
@@ -16,7 +16,7 @@ class Tokenizer:
         while i < len(cmd_line):
             char = cmd_line[i]
             
-            # 1. Escape (\) karakteri kontrolü
+            # 1. Escape (\) character handling
             if escape_next:
                 current_token.append(char)
                 escape_next = False
@@ -28,7 +28,7 @@ class Tokenizer:
                 i += 1
                 continue
                 
-            # 2. Tırnak işaretleri kontrolü
+            # 2. Quote character handling
             if char == "'" and not in_double_quote:
                 in_single_quote = not in_single_quote
                 i += 1
@@ -38,15 +38,15 @@ class Tokenizer:
                 i += 1
                 continue
                 
-            # Tırnak içindeyse her şeyi normal harf say
+            # Inside quotes, treat everything as a regular character
             if in_single_quote or in_double_quote:
                 current_token.append(char)
                 i += 1
                 continue
                 
-            # 3. KORUMA ALANI OLMAYAN (Tırnaksız) YERLER
+            # 3. UNQUOTED (unprotected) regions
             
-            # Boşluk gördüysek mevcut kelimeyi (token) bitir
+            # Whitespace ends the current token
             if char.isspace():
                 if current_token:
                     tokens.append("".join(current_token))
@@ -54,8 +54,8 @@ class Tokenizer:
                 i += 1
                 continue
                 
-            # Sabit operatörler kontrolü (<, >, >>, 2>, 2>>, 2>&1)
-            # Acaba şu anki char '2' ve ondan sonraki '>' mi?
+            # Fixed operator handling (<, >, >>, 2>, 2>>, 2>&1)
+            # Check if current char is '2' followed by '>'
             if char == '2' and i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
                 if current_token:
                     tokens.append("".join(current_token))
@@ -93,7 +93,7 @@ class Tokenizer:
                     i += 1
                 continue
                 
-            # '&' ve '|' operatörleri Fish Shell kuralı
+            # '&' and '|' operators (Fish Shell convention)
             if char == '&':
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '&':
                     if current_token:
@@ -154,7 +154,7 @@ class Tokenizer:
             i += 1
 
         if in_single_quote or in_double_quote:
-            raise ValueError("Kapanmamış tırnak işareti (Missing quotation)")
+            raise ValueError("Unclosed quotation mark")
             
         if current_token:
             tokens.append("".join(current_token))
@@ -175,7 +175,7 @@ class Tokenizer:
                         extra_line = input("> ")
                     cmd_line += "\n" + extra_line
                 except EOFError:
-                    print(f"\n{COLOR_RED}Sözdizimi Hatası:{COLOR_RESET} Eksik tırnak işareti ({e})")
+                    print(f"\n{COLOR_RED}Syntax Error:{COLOR_RESET} Unclosed quotation mark ({e})")
                     return []
                 except KeyboardInterrupt:
                     print()

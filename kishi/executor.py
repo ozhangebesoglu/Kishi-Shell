@@ -15,7 +15,7 @@ def get_close_match_suggestion(cmd_name):
         return ""
     matches = difflib.get_close_matches(cmd_name, SYSTEM_COMMANDS, n=1, cutoff=0.6)
     if matches:
-        return f"\nŞunu mu demek istediniz: {COLOR_CYAN}'{matches[0]}'{COLOR_RESET} ?"
+        return f"\nDid you mean: {COLOR_CYAN}'{matches[0]}'{COLOR_RESET} ?"
     return ""
 
 def execute_pipeline(pipe_node):
@@ -38,7 +38,7 @@ def execute_pipeline(pipe_node):
     if num_cmds == 0:
         return 0
     
-    # Tek Komut ve Built-in
+    # Single command and built-in check
     if num_cmds == 1:
         cmd = valid_commands[0]
         
@@ -120,10 +120,10 @@ def execute_pipeline(pipe_node):
                 prev_stdout = p.stdout
             except FileNotFoundError:
                 sugg = get_close_match_suggestion(cmd_name)
-                print(f"{COLOR_RED}Hata:{COLOR_RESET} '{cmd_name}' bulunamadı.{sugg}", file=sys.stderr)
+                print(f"{COLOR_RED}Error:{COLOR_RESET} '{cmd_name}' not found.{sugg}", file=sys.stderr)
                 return 127
             except Exception as e:
-                print(f"Windows Exec Hata: {e}")
+                print(f"Windows Exec Error: {e}")
                 return 1
                 
         for p in processes:
@@ -132,7 +132,7 @@ def execute_pipeline(pipe_node):
             
         return last_status
 
-    # Çoklu Pipe veya Tekli Harici Komutlar (Fork & Process Groups)
+    # Multi-pipe or single external commands (Fork & Process Groups)
     pipes = [os.pipe() for _ in range(num_cmds - 1)]
     pids = []
     
@@ -156,19 +156,19 @@ def execute_pipeline(pipe_node):
         
         if cmd.in_file:
             try: user_in_fd = os.open(cmd.in_file, os.O_RDONLY)
-            except: print(f"{COLOR_RED}Hata:{COLOR_RESET} {cmd.in_file} okunamıyor."); return 1
+            except: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot read {cmd.in_file}."); return 1
             
         if cmd.out_file:
             flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if cmd.out_append else os.O_TRUNC)
             try: user_out_fd = os.open(cmd.out_file, flags, 0o644)
-            except: print(f"{COLOR_RED}Hata:{COLOR_RESET} {cmd.out_file} yazılamıyor."); return 1
+            except: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.out_file}."); return 1
             
         if cmd.err_to_out:
             pass
         elif cmd.err_file:
             flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if cmd.err_append else os.O_TRUNC)
             try: user_err_fd = os.open(cmd.err_file, flags, 0o644)
-            except: print(f"{COLOR_RED}Hata:{COLOR_RESET} {cmd.err_file} yazılamıyor."); return 1
+            except: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.err_file}."); return 1
 
         final_in_fd = user_in_fd if user_in_fd is not None else in_fd
         final_out_fd = user_out_fd if user_out_fd is not None else out_fd
@@ -234,7 +234,7 @@ def execute_pipeline(pipe_node):
                 os.execvp(cmd_name, cmd_args_to_run)
             except FileNotFoundError:
                 sugg = get_close_match_suggestion(cmd_name)
-                print(f"{COLOR_RED}Hata:{COLOR_RESET} '{cmd_name}' bulunamadı.{sugg}", file=sys.stderr)
+                print(f"{COLOR_RED}Error:{COLOR_RESET} '{cmd_name}' not found.{sugg}", file=sys.stderr)
                 sys.exit(127)
         else:
             # PARENT PROCESS
@@ -265,7 +265,7 @@ def execute_pipeline(pipe_node):
                 if os.WIFSTOPPED(status):
                     job.status = "Stopped"
                     job.is_background = True
-                    print(f"\n{COLOR_YELLOW}[{job.job_id}]+  Durduruldu{COLOR_RESET}      {job.cmd_str}")
+                    print(f"\n{COLOR_YELLOW}[{job.job_id}]+  Stopped{COLOR_RESET}      {job.cmd_str}")
                     break
                 else:
                     last_status = os.waitstatus_to_exitcode(status)
@@ -339,7 +339,7 @@ def execute_ast(node):
     return 0
 
 def process_command_line(cmd_line):
-    """Ana komut işleyici"""
+    """Main command line processor"""
     import kishi.state
     KISHI_SESSION = kishi.state.KISHI_SESSION
     try:

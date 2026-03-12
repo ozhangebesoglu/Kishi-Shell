@@ -2,31 +2,58 @@
 set -e
 
 echo "========================================="
-echo "        Kishi Shell Linux Kurulumu       "
+echo "       Kishi Shell Linux Installation    "
 echo "========================================="
 
-echo "[1/4] Python Bağımlılıkları ve Kishi Paketini Kuruyor..."
-# Kullanıcı bazlı kurulum veya system-wide kurulum. Modern sistemler uyarısını es geçmek için:
-pip3 install . --break-system-packages 2>/dev/null || pip3 install .
-
-echo "[2/4] Doğrudan Çalıştırılabilir Dosya Oluşturuluyor..."
-sudo cp kishi_runner.py /usr/local/bin/kishi
-sudo chmod +x /usr/local/bin/kishi
-
-echo "[3/4] Sisteme Varsayılan Shell Olarak Tanıtılıyor..."
-if ! grep -q "/usr/local/bin/kishi" /etc/shells; then
-    echo "/usr/local/bin/kishi" | sudo tee -a /etc/shells > /dev/null
-    echo "- /etc/shells dosyasına Kishi eklendi."
+echo "[1/2] Installing Python dependencies and Kishi package..."
+if pip3 install . 2>/dev/null; then
+    echo "- Package installed successfully."
+elif pip3 install --user . 2>/dev/null; then
+    echo "- Package installed in user directory (~/.local)."
 else
-    echo "- Kishi zaten /etc/shells dosyasında kayıtlı."
+    echo ""
+    echo "⚠️  Standard installation failed (your system may use PEP 668 protection)."
+    echo "   Choose an option:"
+    echo "   1) Install with --break-system-packages (not recommended)"
+    echo "   2) Create a virtual environment (recommended)"
+    echo ""
+    read -p "Enter choice (1/2): " choice
+    case "$choice" in
+        1)
+            pip3 install . --break-system-packages
+            ;;
+        2)
+            echo "Creating virtual environment at ~/.kishi-venv ..."
+            python3 -m venv ~/.kishi-venv
+            ~/.kishi-venv/bin/pip install .
+            echo ""
+            echo "ℹ️  Add this alias to your ~/.bashrc or ~/.zshrc:"
+            echo "   alias kishi='~/.kishi-venv/bin/kishi'"
+            ;;
+        *)
+            echo "❌ Installation cancelled."
+            exit 1
+            ;;
+    esac
 fi
 
-echo "[4/4] Varsayılan Terminal Değiştiriliyor... (Parolanız İstenilebilir)"
-chsh -s /usr/local/bin/kishi
+# Verify the installation was successful
+if ! python3 -c "from kishi.main import main" 2>/dev/null; then
+    echo "❌ Error: Kishi module could not be loaded. Installation may have failed."
+    echo "   Please run 'pip3 install .' manually and check the error output."
+    exit 1
+fi
+
+echo "[2/2] Verifying the 'kishi' command..."
+if command -v kishi >/dev/null 2>&1; then
+    echo "✅ 'kishi' command is ready."
+else
+    echo "⚠️  'kishi' was not found in PATH. You may need to add ~/.local/bin to your PATH."
+    echo "   Run: export PATH=\"\$HOME/.local/bin:\$PATH\""
+fi
 
 echo "========================================="
-echo "✅ Kurulum Tamamlandı!"
-echo "Lütfen bilgisayarınızı veya terminal emülatörünüzü yeniden başlatın."
-echo "Eğer her şey yolundaysa, terminal direkt olarak Kishi Shell ile açılacaktır."
-echo "Kaldırmak için: chsh -s /bin/bash (veya fish)"
+echo "✅ Installation Complete!"
+echo "Type 'kishi' in your terminal to launch Kishi Shell."
+echo "To uninstall: pip3 uninstall kishi-shell"
 echo "========================================="

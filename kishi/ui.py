@@ -93,13 +93,13 @@ kishi_bindings = KeyBindings()
 
 @kishi_bindings.add('c-l')
 def _(event):
-    " Ekranı düzgün bir şekilde temizler ve prompt'u korur. "
+    " Clears the screen cleanly and preserves the prompt. "
     from prompt_toolkit.shortcuts import clear
     clear()
 
 @kishi_bindings.add('c-r')
 async def _(event):
-    " fzf ile geçmiş araması "
+    " Fuzzy history search "
     history_file = os.path.join(os.environ.get("HOME", "/"), ".kishi_history")
     if not os.path.exists(history_file): return
     try:
@@ -130,13 +130,13 @@ async def _(event):
 
 @kishi_bindings.add('c-e')
 async def _(event):
-    " Ctrl+E ile File Explorer açılışı "
+    " Opens File Explorer with Ctrl+E "
     from .tui_explorer import kishi_explore
     await kishi_explore(["explore"])
 
 @kishi_bindings.add('escape', 'enter')
 def _(event):
-    " Alt+Enter ile Multi-line mode zorlaması "
+    " Forces multi-line mode with Alt+Enter "
     event.current_buffer.insert_text('\n')
 
 def get_prompts():

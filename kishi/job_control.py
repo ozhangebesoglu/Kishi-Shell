@@ -5,11 +5,11 @@ from .state import COLOR_AMBER, COLOR_GREEN, COLOR_YELLOW, COLOR_RESET
 class Job:
     def __init__(self, job_id, pids, cmd_str, is_background):
         self.job_id = job_id
-        self.pids = pids # Pipeline'daki tum alt sureclerin PID'leri
+        self.pids = pids # PIDs of all sub-processes in the pipeline
         self.cmd_str = cmd_str
         self.is_background = is_background
         self.status = "Running"
-        self.pgid = pids[0] if pids else None # Ilk surec PGID'i belirler
+        self.pgid = pids[0] if pids else None # First process determines the PGID
 
 class JobManager:
     jobs = []
@@ -21,7 +21,7 @@ class JobManager:
         cls.jobs.append(job)
         cls.next_job_id += 1
         if is_background:
-            print(f"[{job.job_id}] {pids[-1]} (Arkaplan: {cmd_str})")
+            print(f"[{job.job_id}] {pids[-1]} (Background: {cmd_str})")
         return job
 
     @classmethod
@@ -32,7 +32,7 @@ class JobManager:
 
     @classmethod
     def clean_jobs(cls):
-        """Biten arkaplan veya stopped isleri kontrol eder ve temizler"""
+        """Checks and cleans up finished background or stopped jobs"""
         for job in cls.jobs[:]:
             if not job.is_background and job.status != "Stopped":
                 continue # Foreground continues blocking waitpid in execute
@@ -42,15 +42,15 @@ class JobManager:
                 try:
                     wpid, status = os.waitpid(pid, os.WNOHANG | os.WUNTRACED)
                     if wpid == 0: 
-                        all_done = False # Hâlâ çalışan proses var
+                        all_done = False # Process is still running
                     elif os.WIFSTOPPED(status):
                         job.status = "Stopped"
                         all_done = False
                 except ChildProcessError:
-                    pass # Zaten waitpid edilmis
+                    pass # Already reaped by waitpid
                     
             if all_done and job.status != "Stopped":
-                print(f"\n{COLOR_GREEN}[{job.job_id}]+  Bitti{COLOR_RESET}           {job.cmd_str}")
+                print(f"\n{COLOR_GREEN}[{job.job_id}]+  Done{COLOR_RESET}           {job.cmd_str}")
                 cls.remove_job(job.job_id)
 
     @classmethod

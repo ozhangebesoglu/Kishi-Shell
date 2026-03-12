@@ -1,6 +1,6 @@
 import os
 
-# ==================== GLOBAL STATE & SABİTLER ====================
+# ==================== GLOBAL STATE & CONSTANTS ====================
 COLOR_AMBER = "\033[38;2;255;191;0m"
 COLOR_RESET = "\033[0m"
 COLOR_RED   = "\033[1;31m"
@@ -17,7 +17,7 @@ BUILTINS = {} # Will be populated by builtins.py
 KISHI_SESSION = None
 
 def load_system_commands():
-    """Çalıştırılabilir sistem komutlarını belleğe yükler"""
+    """Loads executable system commands into memory"""
     global SYSTEM_COMMANDS
     paths = os.environ.get("PATH", "/bin:/usr/bin").split(os.pathsep)
     cmds = set()
