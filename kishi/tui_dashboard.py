@@ -166,14 +166,29 @@ def kishi_dashboard(args):
         right_col
     ])
     
-    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute | [Tab] Switch | [Ctrl+E] Explorer | [Ctrl+C] Quit ")]))
+    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute | [Tab] Switch | [Ctrl+E] Explorer | [Ctrl+Q] Quit ")]))
     layout = Layout(HSplit([header, body]), focused_element=in_win)
     
     kb = KeyBindings()
     
+    @kb.add("c-q")
+    def _(event):
+        if running_process and running_process.poll() is None:
+            running_process.kill()
+        event.app.exit(result=0)
+
     @kb.add("c-c")
     def _(event):
-        event.app.exit(result=0)
+        nonlocal running_process
+        if running_process and running_process.poll() is None:
+            import signal
+            try:
+                running_process.send_signal(signal.SIGINT)
+            except:
+                running_process.kill()
+            new_text = output_buffer.text + "\n^C\n"
+            output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
+            running_process = None
         
     @kb.add("c-e")
     def toggle_explorer(event):
