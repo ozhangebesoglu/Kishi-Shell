@@ -648,12 +648,12 @@ def kishi_neofetch(args):
         except:
             pass
     logo = [
-        f"       {COLOR_AMBER} __  __ _     _     _ {COLOR_RESET}",
-        f"       {COLOR_AMBER}|  |/ /(_)___| |__ (_) {COLOR_RESET}",
-        f"       {COLOR_AMBER}| ' / / / __| '_ \\| | {COLOR_RESET}",
-        f"       {COLOR_AMBER}| . \\ | \\__ \\ | | | | {COLOR_RESET}",
-        f"       {COLOR_AMBER}|_|\\_\\|_|___/_| |_|_| {COLOR_RESET}",
-        f"                              "
+        f"       {COLOR_AMBER}  _  _   _     _     _  {COLOR_RESET}",
+        f"       {COLOR_AMBER} | |/ / (_)___| |__ (_) {COLOR_RESET}",
+        f"       {COLOR_AMBER} | ' /  | / __| '_ \\| | {COLOR_RESET}",
+        f"       {COLOR_AMBER} | . \\  | \\__ \\ | | | | {COLOR_RESET}",
+        f"       {COLOR_AMBER} |_|\\_\\ |_|___/_| |_|_| {COLOR_RESET}",
+        f"                               "
     ]
     
     title = f"{COLOR_AMBER}{user}@{host}{COLOR_RESET}"
@@ -672,7 +672,7 @@ def kishi_neofetch(args):
     lines = max(len(logo), len(info))
     print()
     for i in range(lines):
-        l = logo[i] if i < len(logo) else " " * 30
+        l = logo[i] if i < len(logo) else " " * 31
         r = info[i] if i < len(info) else ""
         print(f"{l}  {r}")
     print()
