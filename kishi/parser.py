@@ -170,9 +170,6 @@ class Parser:
                     seq.statements.append(ForNode(var_name, iter_items, body_ast))
                     continue
                     
-                if stream.peek() and stream.peek() == '()':
-                    pass
-                    
                 if token.endswith('()'):
                     push_statement()
                     func_name = token[:-2]

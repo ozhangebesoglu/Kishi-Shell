@@ -22,13 +22,16 @@ def kishi_cd(args):
         target = args[1]
     try:
         os.chdir(target)
+        return 0
     except FileNotFoundError:
         print(f"{COLOR_RED}OS Error:{COLOR_RESET} Directory '{target}' not found.")
+        return 1
     except NotADirectoryError:
         print(f"{COLOR_RED}OS Error:{COLOR_RESET} '{target}' is not a directory.")
+        return 1
     except PermissionError:
         print(f"{COLOR_RED}Access Denied:{COLOR_RESET} No permission to enter '{target}'.")
-    return 0
+        return 1
 
 def kishi_pwd(args):
     print(os.getcwd())
@@ -43,7 +46,7 @@ def kishi_clear(args):
     return 0
 def kishi_help(args):
     help_text = f"""
-{COLOR_AMBER}Kishi Shell Advanced (v1.7) - USER GUIDE{COLOR_RESET}
+{COLOR_AMBER}Kishi Shell Advanced (v1.9.3) - USER GUIDE{COLOR_RESET}
 
 [BASIC COMMANDS]:
   cd <dir>       : Changes the directory. (Ex: cd /home, cd ..)

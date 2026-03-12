@@ -1,6 +1,8 @@
-#  Kishi Shell (v1.9.2)
+#  Kishi Shell (v1.9.3)
 
 > **Bu projeyi beğendiyseniz lütfen [GitHub](https://github.com/ozhangebesoglu/Kishi-Shell)'da ⭐ yıldız verin ve [AUR](https://aur.archlinux.org/packages/kishi-shell)'da oy kullanın! Desteğiniz projenin büyümesine yardımcı olur.**
+
+[![asciicast](https://asciinema.org/a/LQ7jQXtlGHgNoEVa.svg)](https://asciinema.org/a/LQ7jQXtlGHgNoEVa)
 
 Kishi Shell, %100 Python ile geliştirilmiş, harici yazılım (Go, C) veya eklenti gerektirmeden tam teşekküllü bir **Terminal İşletim Sistemi Arayüzüne (TUI)** dönüşen yeni nesil komut satırıdır. Geleneksel Bash komut setini modern *IDE (Kod Editörü)* ve *Sistem Monitörü* özellikleriyle birleştirir.
 
@@ -86,6 +88,12 @@ Kishi her zaman size asistanlık yapar. Sisteme ait tüm özellikleri ve komut i
 - Kapsamlı (Tam) Yardım İçin: `help`
 - Hızlıca Kısayol Özetleri İçin: `help less`
 yazmanız yeterli olacaktır.
+
+---
+
+## Katkıda Bulunun
+
+Katkılarınızı bekliyoruz! Başlamak için [CONTRIBUTING.md](CONTRIBUTING.md) dosyasına göz atın.
 
 ---
 **Geliştiren:** Ozhan Gebesoglu  

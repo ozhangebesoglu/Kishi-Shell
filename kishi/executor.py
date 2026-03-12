@@ -199,9 +199,9 @@ def execute_pipeline(pipe_node):
             for r, w in pipes:
                 os.close(r)
                 os.close(w)
-            if user_in_fd: os.close(user_in_fd)
-            if user_out_fd: os.close(user_out_fd)
-            if user_err_fd: os.close(user_err_fd)
+            if user_in_fd is not None: os.close(user_in_fd)
+            if user_out_fd is not None: os.close(user_out_fd)
+            if user_err_fd is not None: os.close(user_err_fd)
 
             env_updates = {}
             cmd_args_to_run = []
@@ -242,9 +242,9 @@ def execute_pipeline(pipe_node):
                 pgid = pid
             os.setpgid(pid, pgid)
             pids.append(pid)
-            if user_in_fd: os.close(user_in_fd)
-            if user_out_fd: os.close(user_out_fd)
-            if user_err_fd: os.close(user_err_fd)
+            if user_in_fd is not None: os.close(user_in_fd)
+            if user_out_fd is not None: os.close(user_out_fd)
+            if user_err_fd is not None: os.close(user_err_fd)
 
     for r, w in pipes:
         os.close(r)
