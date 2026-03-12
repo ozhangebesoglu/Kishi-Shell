@@ -29,14 +29,33 @@ echo.
 echo [2/2] Verifying installation...
 where kishi >nul 2>&1 && (
     echo     [OK] 'kishi' command is ready.
-) || (
-    echo     [!] 'kishi' was not found in PATH. You may need to restart your terminal.
+    goto :done
 )
+
+echo     [!] 'kishi' was not found in PATH.
+echo.
+
+REM Find Python Scripts directory and add to user PATH
+for /f "delims=" %%i in ('python -c "import sysconfig; print(sysconfig.get_path(\"scripts\"))"') do set "SCRIPTS_DIR=%%i"
+
+if defined SCRIPTS_DIR (
+    echo     Python Scripts directory: %SCRIPTS_DIR%
+    echo     Adding to user PATH...
+    setx PATH "%PATH%;%SCRIPTS_DIR%" >nul 2>&1
+    echo     [OK] PATH updated. Please restart your terminal.
+) else (
+    echo     Could not detect Python Scripts directory.
+)
+
+echo.
+echo     You can always run Kishi with:
+echo       python -m kishi
+
+:done
 echo.
 echo =========================================
 echo [OK] Installation Complete!
-echo Type 'kishi' in your terminal (CMD, PowerShell or Windows Terminal)
-echo to launch Kishi Shell.
+echo Type 'kishi' or 'python -m kishi' to launch Kishi Shell.
 echo To uninstall: pip uninstall kishi-shell
 echo =========================================
 pause
