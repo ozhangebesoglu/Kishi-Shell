@@ -373,14 +373,74 @@ def kishi_source(args):
         return 1
     return 0
 
+def _setup_linux(args):
+    import shutil
+    import subprocess
+
+    kishi_path = shutil.which("kishi")
+    if not kishi_path:
+        print(f"{COLOR_RED}Error:{COLOR_RESET} 'kishi' not found in PATH.")
+        print("  Install first: pip install kishi-shell")
+        return 1
+
+    set_default = "--default" in args
+
+    shells_file = "/etc/shells"
+    registered = False
+    try:
+        with open(shells_file, "r") as f:
+            registered = kishi_path in f.read().splitlines()
+    except FileNotFoundError:
+        pass
+
+    if not registered:
+        print(f"  Kishi path: {kishi_path}")
+        print(f"  Adding to {shells_file} (requires sudo)...")
+        try:
+            result = subprocess.run(
+                ["sudo", "tee", "-a", shells_file],
+                input=f"{kishi_path}\n",
+                capture_output=True, text=True
+            )
+            if result.returncode == 0:
+                print(f"  {COLOR_GREEN}[OK]{COLOR_RESET} Registered in {shells_file}")
+            else:
+                print(f"  {COLOR_RED}[!]{COLOR_RESET} Failed. You can do it manually:")
+                print(f"    echo '{kishi_path}' | sudo tee -a {shells_file}")
+                if not set_default:
+                    return 1
+        except Exception as e:
+            print(f"  {COLOR_RED}Error:{COLOR_RESET} {e}")
+            print(f"    echo '{kishi_path}' | sudo tee -a {shells_file}")
+            if not set_default:
+                return 1
+    else:
+        print(f"  {COLOR_GREEN}[OK]{COLOR_RESET} Already registered in {shells_file}")
+
+    if set_default:
+        print(f"\n  Setting default shell to {kishi_path}...")
+        try:
+            result = subprocess.run(["chsh", "-s", kishi_path], text=True)
+            if result.returncode == 0:
+                print(f"  {COLOR_GREEN}[OK]{COLOR_RESET} Default shell changed. Log out and back in to apply.")
+            else:
+                print(f"  {COLOR_RED}[!]{COLOR_RESET} chsh failed. Try manually:")
+                print(f"    chsh -s {kishi_path}")
+        except Exception as e:
+            print(f"  {COLOR_RED}Error:{COLOR_RESET} {e}")
+            return 1
+    else:
+        print(f"\n  {COLOR_AMBER}Available actions:{COLOR_RESET}")
+        print(f"    setup --default    Set Kishi as your login shell")
+        print(f"    Or manually:       chsh -s {kishi_path}")
+        print(f"\n  To launch on terminal start without changing login shell:")
+        print(f"    echo 'exec kishi' >> ~/.bashrc")
+
+    return 0
+
 def kishi_setup(args):
     if sys.platform != "win32":
-        print(f"{COLOR_GREEN}Linux/macOS:{COLOR_RESET} Kishi is already in your PATH.")
-        print("  To make it your default shell:")
-        print(f"    chsh -s $(which kishi)")
-        print("  Or add to your ~/.bashrc / ~/.zshrc:")
-        print(f"    exec kishi")
-        return 0
+        return _setup_linux(args)
 
     import json
 
