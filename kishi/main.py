@@ -46,6 +46,10 @@ def load_rc_file():
 def main():
     state.BUILTINS.update(BUILTINS_DICT)
     
+    if len(sys.argv) > 1 and sys.argv[1] == "--setup":
+        from kishi.builtins import kishi_setup
+        sys.exit(kishi_setup(["setup"] + sys.argv[2:]))
+
     if len(sys.argv) > 2 and sys.argv[1] == "-c":
         state.load_system_commands()
         load_rc_file()

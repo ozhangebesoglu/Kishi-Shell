@@ -70,6 +70,10 @@ def kishi_help(args):
   export X=1     : Sets a persistent environment variable. (Ex: export PATH=/opt:$PATH)
   unset X        : Removes an assigned variable completely from memory.
 
+[SETUP & INTEGRATION]:
+  setup           : Add Kishi profile to Windows Terminal (Win) or show shell tips (Linux/Mac).
+  setup --default : Set Kishi as the default Windows Terminal profile.
+
 [CUSTOM FUNCTIONS (myfunc)]:
   Create custom sub-routines for repetitive tasks:
   Example: 
@@ -369,7 +373,95 @@ def kishi_source(args):
         return 1
     return 0
 
-# Export dictionary for main initializer
+def kishi_setup(args):
+    if sys.platform != "win32":
+        print(f"{COLOR_GREEN}Linux/macOS:{COLOR_RESET} Kishi is already in your PATH.")
+        print("  To make it your default shell:")
+        print(f"    chsh -s $(which kishi)")
+        print("  Or add to your ~/.bashrc / ~/.zshrc:")
+        print(f"    exec kishi")
+        return 0
+
+    import json
+
+    wt_paths = []
+    local = os.environ.get("LOCALAPPDATA", "")
+    if local:
+        wt_paths.append(os.path.join(local, "Packages", "Microsoft.WindowsTerminal_8wekyb3d8bbwe", "LocalState", "settings.json"))
+        wt_paths.append(os.path.join(local, "Microsoft", "Windows Terminal", "settings.json"))
+
+    settings_path = None
+    for p in wt_paths:
+        if os.path.isfile(p):
+            settings_path = p
+            break
+
+    if not settings_path:
+        print(f"{COLOR_YELLOW}Windows Terminal settings not found.{COLOR_RESET}")
+        print("  Make sure Windows Terminal is installed.")
+        print(f"\n  You can still use Kishi in any terminal:")
+        print(f"    python -m kishi")
+        return 1
+
+    try:
+        with open(settings_path, "r", encoding="utf-8") as f:
+            raw = f.read()
+
+        lines = []
+        for line in raw.splitlines():
+            stripped = line.lstrip()
+            if stripped.startswith("//"):
+                continue
+            lines.append(line)
+        clean_json = "\n".join(lines)
+        settings = json.loads(clean_json)
+    except Exception as e:
+        print(f"{COLOR_RED}Error reading settings:{COLOR_RESET} {e}")
+        return 1
+
+    profiles = settings.get("profiles", {})
+    profile_list = profiles.get("list", [])
+
+    KISHI_GUID = "{e1b5e1a0-k1sh-1sh3-ll00-000000000001}"
+
+    for p in profile_list:
+        if p.get("guid") == KISHI_GUID or p.get("name") == "Kishi Shell":
+            print(f"{COLOR_GREEN}Kishi Shell profile already exists in Windows Terminal.{COLOR_RESET}")
+            return 0
+
+    kishi_profile = {
+        "guid": KISHI_GUID,
+        "name": "Kishi Shell",
+        "commandline": "python -m kishi",
+        "startingDirectory": "%USERPROFILE%",
+        "colorScheme": "One Half Dark",
+        "cursorShape": "filledBox",
+        "hidden": False
+    }
+
+    profile_list.insert(0, kishi_profile)
+    profiles["list"] = profile_list
+    settings["profiles"] = profiles
+
+    set_default = len(args) > 1 and args[1] == "--default"
+    if set_default:
+        settings["defaultProfile"] = KISHI_GUID
+
+    try:
+        with open(settings_path, "w", encoding="utf-8") as f:
+            json.dump(settings, f, indent=4, ensure_ascii=False)
+    except Exception as e:
+        print(f"{COLOR_RED}Error writing settings:{COLOR_RESET} {e}")
+        return 1
+
+    print(f"{COLOR_GREEN}[OK]{COLOR_RESET} Kishi Shell profile added to Windows Terminal.")
+    if set_default:
+        print(f"     Kishi is now the default profile.")
+    else:
+        print(f"     To set as default: setup --default")
+    print(f"     Restart Windows Terminal to see the changes.")
+    return 0
+
 BUILTINS_DICT = {
     "[": kishi_test,
     "test": kishi_test,
@@ -389,5 +481,7 @@ BUILTINS_DICT = {
     ".": kishi_source,
     "deactivate": kishi_deactivate,
     "dashboard": kishi_dashboard,
-    "explore": kishi_explore
+    "explore": kishi_explore,
+    "setup": kishi_setup,
+    "q": kishi_exit,
 }
