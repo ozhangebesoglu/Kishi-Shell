@@ -45,14 +45,33 @@ Arka planda izole olarak çalışan bu sistem; CPU Çekirdek Kullanımını, RAM
 - Paneller arası gezinmek için **`Tab`** tuşunu kullanarak Ağaç -> Editör -> Terminal -> Girdi Satırı arasında mükemmel bir döngü kurabilirsiniz.
 - Kodunuzu yazar, **`Ctrl + S`** ile saniyede kaydedersiniz. 
 ![IDE Layout](assets/ide_layout.png)
+![IDE + Vite Dev Server](assets/dashboard_ide_vite.png)
 
 ### 2-) İnteraktif Terminal & Dizin Senkronizasyonu
 Ekranın altındaki Kishi Terminali, Klasör Ağacıyla canlı senkronize çalışır! 
 - Komut satırına `cd` yazıp klasör değiştirdiğinizde Ağaç da otomatik güncellenir.
 - `input()` gibi sizden veri bekleyen uzun soluklu Python veya Bash scriptlerini çalıştırdığınızda arayüz asla donmaz! Arka plan ikili veri akışı (binary streaming) sayesinde komut çıkıntıları direkt arayüze basılır ve en alttaki komut satırından yazdığınız girdiler doğrudan kodun `stdin` girişine yönlendirilir.
+- **`Ctrl + C`** ile çalışan process'i dashboard'u kapatmadan öldürebilir, ardından terminali kullanmaya devam edebilirsiniz.
 ![Interactive Terminal](assets/interactive_terminal.png)
+![Ctrl+C Sinyal Yönetimi](assets/dashboard_sigint.png)
+![Terminal Komutları](assets/dashboard_terminal_ls.png)
 
-### 3-) Tarihçe Arama (Fuzzy Search)
+### 3-) Bağımsız Dosya Gezgini
+IDE Explorer, dashboard dışında bağımsız bir çift panelli dosya tarayıcısı olarak da çalışır. Tüm dosya sisteminizde gezinin, dizinleri önizleyin ve satır numaralı editörle kod düzenleyin.
+- **Komut:** `explore`
+- **Kısayol:** **`Ctrl + E`**
+![Bağımsız Explorer](assets/explorer_standalone.png)
+![Kod Düzenleme & Kaydetme](assets/explorer_code_editing.png)
+
+### 4-) Tab Completion & Sözdizimi Renklendirme
+Kishi, sistem komutları, yerleşik komutlar ve dosya yolları için gerçek zamanlı tab completion sunar. Bilinen komutlar yeşil, bilinmeyenler kırmızı görünür.
+![Tab Completion](assets/tab_completion.png)
+
+### 5-) Yardım Sistemi & Tarihçe Arama (Fuzzy Search)
+- Kapsamlı Yardım İçin: `help` — Hızlı Kısayollar İçin: `help less`
+![Yardım Rehberi](assets/help_guide.png)
+![Yardım Genel Bakış](assets/help_overview.png)
+
 Eski komutlarınızı bulmak için harici FZF kurmanıza gerek yok.
 - **Kısayol:** **`Ctrl + R`**
 Daktilo gibi tuşlara bastıkça binlerce eski komutunuz arasından karakter eşleşmesi yaparak istediğiniz komutu saniyede ekranınıza getirir. `Enter`'a basıp komutu çekebilirsiniz.

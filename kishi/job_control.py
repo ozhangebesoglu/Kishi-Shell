@@ -33,21 +33,25 @@ class JobManager:
     @classmethod
     def clean_jobs(cls):
         """Checks and cleans up finished background or stopped jobs"""
+        import sys
+        if sys.platform == "win32":
+            return
+
         for job in cls.jobs[:]:
             if not job.is_background and job.status != "Stopped":
-                continue # Foreground continues blocking waitpid in execute
-                
+                continue
+
             all_done = True
             for pid in job.pids:
                 try:
                     wpid, status = os.waitpid(pid, os.WNOHANG | os.WUNTRACED)
-                    if wpid == 0: 
-                        all_done = False # Process is still running
+                    if wpid == 0:
+                        all_done = False
                     elif os.WIFSTOPPED(status):
                         job.status = "Stopped"
                         all_done = False
                 except ChildProcessError:
-                    pass # Already reaped by waitpid
+                    pass
                     
             if all_done and job.status != "Stopped":
                 print(f"\n{COLOR_GREEN}[{job.job_id}]+  Done{COLOR_RESET}           {job.cmd_str}")

@@ -99,18 +99,19 @@ def kishi_history(args):
 
 def kishi_jobs(args):
     JobManager.clean_jobs()
-    for jid, job in JobManager.jobs.items() if isinstance(JobManager.jobs, dict) else enumerate(JobManager.jobs):
-        if not isinstance(JobManager.jobs, dict):
-            jid = job.job_id
-        state = job.status
-        if state == "Running" and job.is_background:
-            state = "Running &"
-        print(f"[{jid}]   {state:12} {job.cmd_str}")
+    for job in JobManager.jobs:
+        status = job.status
+        if status == "Running" and job.is_background:
+            status = "Running &"
+        print(f"[{job.job_id}]   {status:12} {job.cmd_str}")
     return 0
     
 def kishi_fg(args):
+    if sys.platform == "win32":
+        print("fg: not supported on Windows")
+        return 1
+
     job_id = -1
-    dict_mode = isinstance(JobManager.jobs, dict)
     
     if len(args) > 1:
         try: job_id = int(args[1])
@@ -119,9 +120,9 @@ def kishi_fg(args):
         if not JobManager.jobs:
             print("No jobs in background")
             return 1
-        job_id = max(JobManager.jobs.keys()) if dict_mode else JobManager.jobs[-1].job_id
+        job_id = JobManager.jobs[-1].job_id
         
-    job = JobManager.jobs.get(job_id) if dict_mode else JobManager.get_job(job_id)
+    job = JobManager.get_job(job_id)
     if not job:
         print("Job not found")
         return 1
@@ -170,8 +171,11 @@ def kishi_fg(args):
     return last_status
 
 def kishi_bg(args):
+    if sys.platform == "win32":
+        print("bg: not supported on Windows")
+        return 1
+
     job_id = -1
-    dict_mode = isinstance(JobManager.jobs, dict)
     
     if len(args) > 1:
         try: job_id = int(args[1])
@@ -181,17 +185,15 @@ def kishi_bg(args):
             print("No stopped jobs")
             return 1
             
-        jobs_list = sorted(JobManager.jobs.keys(), reverse=True) if dict_mode else reversed(JobManager.jobs)
-        for j in jobs_list:
-            tj = JobManager.jobs[j] if dict_mode else j
-            if tj.status == "Stopped":
-                job_id = tj.job_id
+        for j in reversed(JobManager.jobs):
+            if j.status == "Stopped":
+                job_id = j.job_id
                 break
         if job_id == -1:
             print("No stopped jobs")
             return 1
             
-    job = JobManager.jobs.get(job_id) if dict_mode else JobManager.get_job(job_id)
+    job = JobManager.get_job(job_id)
     if not job:
         print("Job not found")
         return 1
@@ -285,7 +287,8 @@ def kishi_test(args):
 
 def kishi_deactivate(args):
     if "VIRTUAL_ENV" in os.environ:
-        venv_bin = os.path.join(os.environ["VIRTUAL_ENV"], "bin")
+        bin_dir = "Scripts" if sys.platform == "win32" else "bin"
+        venv_bin = os.path.join(os.environ["VIRTUAL_ENV"], bin_dir)
         if "PATH" in os.environ:
             path_list = os.environ["PATH"].split(os.pathsep)
             if venv_bin in path_list:
@@ -329,7 +332,11 @@ def kishi_source(args):
         
     try:
         import subprocess
-        # Source the script via bash and read back environment variables
+        if sys.platform == "win32":
+            print(f"{COLOR_YELLOW}Warning:{COLOR_RESET} 'source' is not fully supported on Windows.")
+            print("  Use 'python -m venv <dir>' and activate manually.")
+            return 1
+
         env_cmd = f"source {script_path} && env && echo '---KISHI_SEP---' && alias"
         result = subprocess.run(['bash', '-c', env_cmd], capture_output=True, text=True)
         if result.returncode != 0:

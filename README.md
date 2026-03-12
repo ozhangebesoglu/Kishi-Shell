@@ -45,14 +45,33 @@ Running isolated in the background, this system displays CPU Core Usage, RAM / S
 - You can navigate between panels using the **`Tab`** key, creating a perfect cycle between Tree -> Editor -> Terminal -> Input Line.
 - Write your code and save it instantly with **`Ctrl + S`**. 
 ![IDE Layout](assets/ide_layout.png)
+![IDE + Vite Dev Server](assets/dashboard_ide_vite.png)
 
 ### 2-) Interactive Terminal & Directory Synchronization
 The Kishi Terminal at the bottom of the screen works in live sync with the Folder Tree! 
 - When you type `cd` in the command line to change directories, the Tree updates automatically.
 - When you run long-running Python or Bash scripts that wait for your input (like `input()`), the interface never freezes! Thanks to background binary streaming, command outputs are printed directly to the interface, and inputs you type in the command line at the bottom are forwarded directly to the code's `stdin` input.
+- You can send **`Ctrl + C`** to kill a running process without closing the dashboard, then continue using the terminal normally.
 ![Interactive Terminal](assets/interactive_terminal.png)
+![Ctrl+C Signal Handling](assets/dashboard_sigint.png)
+![Terminal Commands](assets/dashboard_terminal_ls.png)
 
-### 3-) History Search (Fuzzy Search)
+### 3-) Standalone File Explorer
+The IDE Explorer also works as a standalone dual-pane file browser outside the dashboard. Navigate your entire filesystem, preview directories, and edit code with line numbers.
+- **Command:** `explore`
+- **Shortcut:** **`Ctrl + E`**
+![Standalone Explorer](assets/explorer_standalone.png)
+![Code Editing & Save](assets/explorer_code_editing.png)
+
+### 4-) Tab Completion & Syntax Highlighting
+Kishi provides real-time tab completion for system commands, builtins, and filesystem paths. Known commands appear in green, unknown ones in red.
+![Tab Completion](assets/tab_completion.png)
+
+### 5-) Help System & History Search (Fuzzy Search)
+- For Comprehensive Help: `help` — For Quick Shortcuts: `help less`
+![Help Guide](assets/help_guide.png)
+![Help Overview](assets/help_overview.png)
+
 No need to install external FZF to find your old commands.
 - **Shortcut:** **`Ctrl + R`**
 As you type like a typewriter, it performs character matching among thousands of your old commands and brings the desired command to your screen in seconds. Press `Enter` to pull the command.
