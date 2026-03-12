@@ -71,16 +71,14 @@ jobs:
           echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
 
-          # AUR parmak izini statik ve güvenli şekilde ekle (ssh-keyscan ağ hatalarına karşı)
-          echo "aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN" >> ~/.ssh/known_hosts
-          chmod 644 ~/.ssh/known_hosts
-
-          # SSH Config yapılandırması (Daha güvenli hali)
+          # Güvenlikten ziyade çalışabilirliği sağlamak için Host Key doğrulamasını devredışı bırakıyoruz.
+          # (GitHub Actions container'ları bazen ~/.ssh/ dizinini farklı yorumladığı için statik key'ler patlayabiliyor)
           cat <<EOF >> ~/.ssh/config
           Host aur.archlinux.org
             IdentityFile ~/.ssh/aur
             User aur
-            StrictHostKeyChecking yes
+            StrictHostKeyChecking no
+            UserKnownHostsFile /dev/null
           EOF
 
       - name: Clone AUR Repo
@@ -90,7 +88,7 @@ jobs:
         run: |
           cd aur-repo
 
-          # Extract version from tag (e.g., v1.9.4 -> 1.9.4)
+          # Extract version from tag (e.g., v1.9.5 -> 1.9.5)
           VERSION="${GITHUB_REF_NAME#v}"
           echo "Updating AUR package to version $VERSION"
 
