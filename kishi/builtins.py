@@ -514,12 +514,160 @@ def kishi_setup(args):
         print(f"{COLOR_RED}Error writing settings:{COLOR_RESET} {e}")
         return 1
 
-    print(f"{COLOR_GREEN}[OK]{COLOR_RESET} Kishi Shell profile added to Windows Terminal.")
-    if set_default:
-        print(f"     Kishi is now the default profile.")
-    else:
         print(f"     To set as default: setup --default")
     print(f"     Restart Windows Terminal to see the changes.")
+    return 0
+
+def kishi_plugin(args):
+    plugin_dir = os.path.join(os.environ.get("HOME", "/"), ".kishi", "plugins")
+    if not os.path.exists(plugin_dir):
+        os.makedirs(plugin_dir, exist_ok=True)
+        
+    if len(args) < 2:
+        print(f"{COLOR_AMBER}Kishi Plugin Manager{COLOR_RESET}")
+        print("Usage:")
+        print("  plugin list               : List installed plugins")
+        print("  plugin install <name/url> : Install a plugin by Github Username/Repo or raw URL")
+        print("  plugin remove <name>      : Uninstall a plugin")
+        return 1
+        
+    action = args[1].lower()
+    
+    if action == "list":
+        plugins = [f for f in os.listdir(plugin_dir) if f.endswith(".py")]
+        if not plugins:
+            print("No plugins installed.")
+        else:
+            print(f"{COLOR_CYAN}[+] Installed Plugins:{COLOR_RESET}")
+            for p in plugins:
+                print(f"  - {p[:-3]}")
+        return 0
+        
+    elif action == "install":
+        if len(args) < 3:
+            print("Usage: plugin install <url_or_name>")
+            return 1
+            
+        target = args[2]
+        # Resolve URLs nicely
+        if target.startswith("http"):
+            url = target
+            name = url.split("/")[-1]
+            if not name.endswith(".py"):
+                name += ".py"
+        else:
+            name = target if target.endswith(".py") else target + ".py"
+            # Central marketplace URL logic
+            url = f"https://raw.githubusercontent.com/ozhangebesoglu/Kishi-Plugins/main/{name}"
+            
+        import urllib.request
+        from urllib.error import URLError, HTTPError
+        print(f"[*] Downloading '{name}' from marketplace...")
+        try:
+            req = urllib.request.Request(url, headers={'User-Agent': 'Kishi-Shell'})
+            with urllib.request.urlopen(req) as response:
+                code = response.read().decode('utf-8')
+            
+            filepath = os.path.join(plugin_dir, name)
+            with open(filepath, "w") as f:
+                f.write(code)
+                
+            print(f"{COLOR_GREEN}[+] Plugin '{name[:-3]}' installed successfully!{COLOR_RESET}")
+            print(f"[*] Please run 'source ~/.kishirc' or restart Kishi to load it.")
+            return 0
+        except HTTPError as e:
+            if e.code == 404:
+                print(f"{COLOR_RED}[-] Plugin '{name}' not found in the official registry.{COLOR_RESET}")
+                print(f"    Check the name or provide a direct raw URL.")
+            else:
+                print(f"{COLOR_RED}[-] HTTP Error: {e.code}{COLOR_RESET}")
+            return 1
+        except URLError as e:
+            print(f"{COLOR_RED}[-] Network connection failed: {e.reason}{COLOR_RESET}")
+            return 1
+        except Exception as e:
+            print(f"{COLOR_RED}[-] Installation failed:{COLOR_RESET} {e}")
+            return 1
+            
+    elif action in ("remove", "uninstall", "delete"):
+        if len(args) < 3:
+            print("Usage: plugin remove <name>")
+            return 1
+            
+        name = args[2] if args[2].endswith(".py") else args[2] + ".py"
+        filepath = os.path.join(plugin_dir, name)
+        
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            print(f"{COLOR_GREEN}[+] Plugin '{name[:-3]}' removed successfully.{COLOR_RESET}")
+            return 0
+        else:
+            print(f"{COLOR_RED}[-] Plugin '{name[:-3]}' is not installed.{COLOR_RESET}")
+            return 1
+    else:
+        print(f"Unknown action: {action}")
+        return 1
+
+def kishi_neofetch(args):
+    import platform
+    import getpass
+    import socket
+    
+    os_name = f"{platform.system()} {platform.release()}"
+    kernel = platform.machine()
+    user = getpass.getuser()
+    host = socket.gethostname()
+    
+    uptime = "Unknown"
+    if os.path.exists("/proc/uptime"):
+        try:
+            with open("/proc/uptime", "r") as f:
+                seconds = float(f.readline().split()[0])
+                m, s = divmod(seconds, 60)
+                h, m = divmod(m, 60)
+                uptime = f"{int(h)}h {int(m)}m"
+        except:
+            pass
+            
+    memory = "Unknown"
+    try:
+        import psutil
+        mem = psutil.virtual_memory()
+        memory = f"{mem.used // (1024*1024)}MiB / {mem.total // (1024*1024)}MiB"
+    except ImportError:
+        pass
+
+    cpu = platform.processor() or "Unknown"
+
+    logo = [
+        f"       {COLOR_AMBER} __  __ _     _     _ {COLOR_RESET}",
+        f"       {COLOR_AMBER}|  |/ /(_)___| |__ (_) {COLOR_RESET}",
+        f"       {COLOR_AMBER}| ' / / / __| '_ \\| | {COLOR_RESET}",
+        f"       {COLOR_AMBER}| . \\ | \\__ \\ | | | | {COLOR_RESET}",
+        f"       {COLOR_AMBER}|_|\\_\\|_|___/_| |_|_| {COLOR_RESET}",
+        f"                              "
+    ]
+    
+    title = f"{COLOR_AMBER}{user}@{host}{COLOR_RESET}"
+    
+    info = [
+        title,
+        "-" * len(f"{user}@{host}"),
+        f"{COLOR_CYAN}OS:{COLOR_RESET} {os_name}",
+        f"{COLOR_CYAN}Kernel:{COLOR_RESET} {kernel}",
+        f"{COLOR_CYAN}Uptime:{COLOR_RESET} {uptime}",
+        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v1.9.9",
+        f"{COLOR_CYAN}CPU:{COLOR_RESET} {cpu}",
+        f"{COLOR_CYAN}Memory:{COLOR_RESET} {memory}",
+    ]
+    
+    lines = max(len(logo), len(info))
+    print()
+    for i in range(lines):
+        l = logo[i] if i < len(logo) else " " * 30
+        r = info[i] if i < len(info) else ""
+        print(f"{l}  {r}")
+    print()
     return 0
 
 BUILTINS_DICT = {
@@ -543,5 +691,8 @@ BUILTINS_DICT = {
     "dashboard": kishi_dashboard,
     "explore": kishi_explore,
     "setup": kishi_setup,
+    "plugin": kishi_plugin,
+    "neofetch": kishi_neofetch,
+    "fetch": kishi_neofetch,
     "q": kishi_exit,
 }

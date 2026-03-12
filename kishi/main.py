@@ -43,6 +43,27 @@ def load_rc_file():
     except Exception as e:
         print(f"Warning: Could not read .kishirc - {e}")
 
+def load_plugins():
+    import importlib.util
+    
+    plugin_dir = os.path.join(os.environ.get("HOME", "/"), ".kishi", "plugins")
+    if not os.path.exists(plugin_dir):
+        return
+        
+    for filename in os.listdir(plugin_dir):
+        if filename.endswith(".py"):
+            filepath = os.path.join(plugin_dir, filename)
+            module_name = "kishi.plugins." + filename[:-3]
+            try:
+                spec = importlib.util.spec_from_file_location(module_name, filepath)
+                if spec and spec.loader:
+                    mod = importlib.util.module_from_spec(spec)
+                    spec.loader.exec_module(mod)
+                    if hasattr(mod, "PLUGIN_COMMANDS") and isinstance(mod.PLUGIN_COMMANDS, dict):
+                        state.BUILTINS.update(mod.PLUGIN_COMMANDS)
+            except Exception as e:
+                print(f"{state.COLOR_RED}Plugin Error:{state.COLOR_RESET} Failed to load {filename} - {e}")
+
 def main():
     state.BUILTINS.update(BUILTINS_DICT)
     
@@ -53,6 +74,7 @@ def main():
     if len(sys.argv) > 2 and sys.argv[1] == "-c":
         state.load_system_commands()
         load_rc_file()
+        load_plugins()
         process_command_line(sys.argv[2])
         sys.exit(0)
         
@@ -73,6 +95,7 @@ def main():
         print("Failed to load prompt_toolkit:", e)
         
     load_rc_file()
+    load_plugins()
     
     print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v1.9.9){state.COLOR_RESET}")
     print("Type 'help' for the command guide.")
