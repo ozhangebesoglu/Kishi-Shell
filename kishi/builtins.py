@@ -648,12 +648,14 @@ def kishi_neofetch(args):
         except:
             pass
     logo = [
-        f"       {COLOR_AMBER}  _  _   _     _     _  {COLOR_RESET}",
-        f"       {COLOR_AMBER} | |/ / (_)___| |__ (_) {COLOR_RESET}",
-        f"       {COLOR_AMBER} | ' /  | / __| '_ \\| | {COLOR_RESET}",
-        f"       {COLOR_AMBER} | . \\  | \\__ \\ | | | | {COLOR_RESET}",
-        f"       {COLOR_AMBER} |_|\\_\\ |_|___/_| |_|_| {COLOR_RESET}",
-        f"                               "
+        f"{COLOR_AMBER}  _______  _______  _______  _______  _______ {COLOR_RESET}",
+        f"{COLOR_AMBER} |\\     /||\\     /||\\     /||\\     /||\\     /|{COLOR_RESET}",
+        f"{COLOR_AMBER} | +---+ || +---+ || +---+ || +---+ || +---+ |{COLOR_RESET}",
+        f"{COLOR_AMBER} | |   | || |   | || |   | || |   | || |   | |{COLOR_RESET}",
+        f"{COLOR_AMBER} | |k  | || |i  | || |s  | || |h  | || |i  | |{COLOR_RESET}",
+        f"{COLOR_AMBER} | +---+ || +---+ || +---+ || +---+ || +---+ |{COLOR_RESET}",
+        f"{COLOR_AMBER} |/_____\\||/_____\\||/_____\\||/_____\\||/_____\\| {COLOR_RESET}",
+        f"                                              "
     ]
     
     title = f"{COLOR_AMBER}{user}@{host}{COLOR_RESET}"
@@ -672,7 +674,7 @@ def kishi_neofetch(args):
     lines = max(len(logo), len(info))
     print()
     for i in range(lines):
-        l = logo[i] if i < len(logo) else " " * 31
+        l = logo[i] if i < len(logo) else " " * 46
         r = info[i] if i < len(info) else ""
         print(f"{l}  {r}")
     print()
