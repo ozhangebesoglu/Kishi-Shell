@@ -30,6 +30,7 @@ No more reading files on a plain black screen! Kishi Shell doesn't make you inst
 - **Command:** `dashboard`
 Running isolated in the background, this system displays CPU Core Usage, RAM / SWAP Metrics, Root Disk space, and Live Network Traffic (Down/Up) in side panels. 
 ![Dashboard UI](assets/dashboard.png)
+![Dark Mode](assets/darkmode.png)
 
 - When you press **`Ctrl + E`**, the massive terminal in the center instantly transforms into a **Dual-Panel IDE (Development Environment)**. The screen splits from the top into two sections, placing the Folder Tree on the left and the Code Editor on the right. The bottom section remains as the Kishi Terminal.
 - You can navigate between panels using the **`Tab`** key, creating a perfect cycle between Tree -> Editor -> Terminal -> Input Line.
