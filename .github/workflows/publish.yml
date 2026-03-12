@@ -55,3 +55,58 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
+
+  aur-publish:
+    needs: github-release
+    runs-on: ubuntu-latest
+    container:
+      image: archlinux:base-devel
+    steps:
+      - name: Install dependencies
+        run: pacman -Syu --noconfirm git openssh curl sudo awk
+
+      - name: Set up SSH for AUR
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          echo "Host aur.archlinux.org" >> ~/.ssh/config
+          echo "  IdentityFile ~/.ssh/aur" >> ~/.ssh/config
+          echo "  User aur" >> ~/.ssh/config
+          echo "  StrictHostKeyChecking accept-new" >> ~/.ssh/config
+
+      - name: Clone AUR Repo
+        run: git clone ssh://aur@aur.archlinux.org/kishi-shell.git aur-repo
+
+      - name: Update PKGBUILD and Push
+        run: |
+          cd aur-repo
+
+          # Extract version from tag (e.g., v1.9.4 -> 1.9.4)
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Updating AUR package to version $VERSION"
+
+          # Get tarball hash
+          TARBALL_URL="https://github.com/ozhangebesoglu/Kishi-Shell/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
+          TARBALL_HASH=$(curl -sL $TARBALL_URL | sha256sum | awk '{print $1}')
+          echo "Calculated hash: $TARBALL_HASH"
+
+          # Update PKGBUILD
+          sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
+          sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
+          sed -i "s/^sha256sums=('.*')/sha256sums=('$TARBALL_HASH')/" PKGBUILD
+
+          # Setup builder user for makepkg (root cannot run makepkg)
+          useradd builder -m
+          echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
+          chown -R builder:builder .
+
+          # Generate .SRCINFO
+          sudo -u builder makepkg --printsrcinfo > .SRCINFO
+
+          # Commit and Push
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add PKGBUILD .SRCINFO
+          git commit -m "chore: Auto-update to ${GITHUB_REF_NAME}" || echo "No changes to commit"
+          git push

@@ -341,7 +341,7 @@ def kishi_source(args):
             print("  Use 'python -m venv <dir>' and activate manually.")
             return 1
 
-        env_cmd = f"source {script_path} && env && echo '---KISHI_SEP---' && alias"
+        env_cmd = f"source {__import__('shlex').quote(script_path)} && env && echo '---KISHI_SEP---' && alias"
         result = subprocess.run(['bash', '-c', env_cmd], capture_output=True, text=True)
         if result.returncode != 0:
             print(f"{COLOR_RED}KS source error:{COLOR_RESET} Failed to process bash script.")

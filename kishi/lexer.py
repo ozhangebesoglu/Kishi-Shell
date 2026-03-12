@@ -1,6 +1,10 @@
 from .state import KISHI_SESSION, COLOR_AMBER, COLOR_RED
 from prompt_toolkit.formatted_text import ANSI
 
+# Sentinel prefixes for quote-type metadata
+QUOTE_SINGLE = '\x01'  # Token was inside single quotes (no expansion)
+QUOTE_DOUBLE = '\x02'  # Token was inside double quotes (variable expansion only)
+
 class Tokenizer:
     @staticmethod
     def tokenize(cmd_line):
@@ -11,6 +15,9 @@ class Tokenizer:
         in_single_quote = False
         in_double_quote = False
         escape_next = False
+        # Track the quote type that covers the current token
+        token_has_single = False
+        token_has_double = False
         
         i = 0
         while i < len(cmd_line):
@@ -31,10 +38,14 @@ class Tokenizer:
             # 2. Quote character handling
             if char == "'" and not in_double_quote:
                 in_single_quote = not in_single_quote
+                if in_single_quote:
+                    token_has_single = True
                 i += 1
                 continue
             elif char == '"' and not in_single_quote:
                 in_double_quote = not in_double_quote
+                if in_double_quote:
+                    token_has_double = True
                 i += 1
                 continue
                 
@@ -49,8 +60,15 @@ class Tokenizer:
             # Whitespace ends the current token
             if char.isspace():
                 if current_token:
-                    tokens.append("".join(current_token))
+                    prefix = ''
+                    if token_has_single:
+                        prefix = QUOTE_SINGLE
+                    elif token_has_double:
+                        prefix = QUOTE_DOUBLE
+                    tokens.append(prefix + "".join(current_token))
                     current_token = []
+                    token_has_single = False
+                    token_has_double = False
                 i += 1
                 continue
                 
@@ -58,8 +76,11 @@ class Tokenizer:
             # Check if current char is '2' followed by '>'
             if char == '2' and i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
                 if current_token:
-                    tokens.append("".join(current_token))
+                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    tokens.append(prefix + "".join(current_token))
                     current_token = []
+                    token_has_single = False
+                    token_has_double = False
                 if i + 3 < len(cmd_line) and cmd_line[i+1:i+4] == '>&1':
                     tokens.append('2>&1')
                     i += 4
@@ -75,16 +96,22 @@ class Tokenizer:
             
             if char == '<':
                 if current_token:
-                    tokens.append("".join(current_token))
+                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    tokens.append(prefix + "".join(current_token))
                     current_token = []
+                    token_has_single = False
+                    token_has_double = False
                 tokens.append('<')
                 i += 1
                 continue
                 
             if char == '>':
                 if current_token:
-                    tokens.append("".join(current_token))
+                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    tokens.append(prefix + "".join(current_token))
                     current_token = []
+                    token_has_single = False
+                    token_has_double = False
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
                     tokens.append('>>')
                     i += 2
@@ -97,8 +124,11 @@ class Tokenizer:
             if char == '&':
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '&':
                     if current_token:
-                        tokens.append("".join(current_token))
+                        prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                        tokens.append(prefix + "".join(current_token))
                         current_token = []
+                        token_has_single = False
+                        token_has_double = False
                     tokens.append('&&')
                     i += 2
                     continue
@@ -108,8 +138,11 @@ class Tokenizer:
                     
                     if prev_is_space or next_is_space:
                         if current_token:
-                            tokens.append("".join(current_token))
+                            prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                            tokens.append(prefix + "".join(current_token))
                             current_token = []
+                            token_has_single = False
+                            token_has_double = False
                         tokens.append('&')
                         i += 1
                         continue
@@ -120,16 +153,22 @@ class Tokenizer:
 
             if char == ';':
                 if current_token:
-                    tokens.append("".join(current_token))
+                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    tokens.append(prefix + "".join(current_token))
                     current_token = []
+                    token_has_single = False
+                    token_has_double = False
                 tokens.append(';')
                 i += 1
                 continue
                 
             if char in ('{', '}'):
                 if current_token:
-                    tokens.append("".join(current_token))
+                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    tokens.append(prefix + "".join(current_token))
                     current_token = []
+                    token_has_single = False
+                    token_has_double = False
                 tokens.append(char)
                 i += 1
                 continue
@@ -137,15 +176,21 @@ class Tokenizer:
             if char == '|':
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '|':
                     if current_token:
-                        tokens.append("".join(current_token))
+                        prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                        tokens.append(prefix + "".join(current_token))
                         current_token = []
+                        token_has_single = False
+                        token_has_double = False
                     tokens.append('||')
                     i += 2
                     continue
                 else:
                     if current_token:
-                        tokens.append("".join(current_token))
+                        prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                        tokens.append(prefix + "".join(current_token))
                         current_token = []
+                        token_has_single = False
+                        token_has_double = False
                     tokens.append('|')
                     i += 1
                     continue
@@ -157,7 +202,12 @@ class Tokenizer:
             raise ValueError("Unclosed quotation mark")
             
         if current_token:
-            tokens.append("".join(current_token))
+            prefix = ''
+            if token_has_single:
+                prefix = QUOTE_SINGLE
+            elif token_has_double:
+                prefix = QUOTE_DOUBLE
+            tokens.append(prefix + "".join(current_token))
             
         return tokens
 

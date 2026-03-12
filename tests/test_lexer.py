@@ -1,5 +1,5 @@
 import pytest
-from kishi.lexer import Tokenizer
+from kishi.lexer import Tokenizer, QUOTE_SINGLE, QUOTE_DOUBLE
 
 
 class TestBasicTokenization:
@@ -18,13 +18,13 @@ class TestBasicTokenization:
 
 class TestQuoteHandling:
     def test_single_quotes(self):
-        assert Tokenizer.tokenize("echo 'hello world'") == ["echo", "hello world"]
+        assert Tokenizer.tokenize("echo 'hello world'") == ["echo", QUOTE_SINGLE + "hello world"]
 
     def test_double_quotes(self):
-        assert Tokenizer.tokenize('echo "hello world"') == ["echo", "hello world"]
+        assert Tokenizer.tokenize('echo "hello world"') == ["echo", QUOTE_DOUBLE + "hello world"]
 
     def test_nested_quotes(self):
-        assert Tokenizer.tokenize("""echo "it's fine" """) == ["echo", "it's fine"]
+        assert Tokenizer.tokenize("""echo "it's fine" """) == ["echo", QUOTE_DOUBLE + "it's fine"]
 
     def test_unclosed_quote_raises(self):
         with pytest.raises(ValueError):
@@ -34,7 +34,7 @@ class TestQuoteHandling:
         assert Tokenizer.tokenize("echo ''") == ["echo"]
 
     def test_adjacent_quoted_sections(self):
-        assert Tokenizer.tokenize("echo 'hello'' world'") == ["echo", "hello world"]
+        assert Tokenizer.tokenize("echo 'hello'' world'") == ["echo", QUOTE_SINGLE + "hello world"]
 
 
 class TestEscapeHandling:
@@ -99,3 +99,32 @@ class TestComplexCommands:
     def test_logic_chain(self):
         result = Tokenizer.tokenize("make && make install || echo failed")
         assert result == ["make", "&&", "make", "install", "||", "echo", "failed"]
+
+
+class TestQuoteMetadata:
+    """Tests for the quote-type sentinel prefix feature (Bug Fix: single-quote expansion)."""
+
+    def test_single_quote_prefix_on_variable(self):
+        """echo '$USER' should NOT expand — token must have QUOTE_SINGLE prefix."""
+        result = Tokenizer.tokenize("echo '$USER'")
+        assert result == ["echo", QUOTE_SINGLE + "$USER"]
+
+    def test_double_quote_prefix_on_variable(self):
+        """echo "$USER" should expand variable — token must have QUOTE_DOUBLE prefix."""
+        result = Tokenizer.tokenize('echo "$USER"')
+        assert result == ["echo", QUOTE_DOUBLE + "$USER"]
+
+    def test_unquoted_no_prefix(self):
+        """echo $USER should have no prefix — full expansion."""
+        result = Tokenizer.tokenize("echo $USER")
+        assert result == ["echo", "$USER"]
+
+    def test_single_quote_preserves_special_chars(self):
+        """Single quotes should preserve all special characters with prefix."""
+        result = Tokenizer.tokenize("echo '*.txt $HOME ~/'")
+        assert result == ["echo", QUOTE_SINGLE + "*.txt $HOME ~/"]
+
+    def test_double_quote_preserves_glob(self):
+        """Double quotes should preserve glob characters with prefix."""
+        result = Tokenizer.tokenize('echo "*.txt"')
+        assert result == ["echo", QUOTE_DOUBLE + "*.txt"]

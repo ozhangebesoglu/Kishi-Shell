@@ -90,3 +90,43 @@ class TestPassthrough:
     def test_plain_args(self):
         result = Expander.expand(["ls", "-la", "/tmp"])
         assert result == ["ls", "-la", "/tmp"]
+
+
+class TestQuoteExpansion:
+    """Tests for the quote-aware expansion (Bug Fix: single-quote variable expansion)."""
+
+    def test_single_quoted_variable_not_expanded(self):
+        """Single-quoted $USER should NOT be expanded."""
+        from kishi.lexer import QUOTE_SINGLE
+        os.environ["KISHI_TEST_Q"] = "expanded"
+        result = Expander.expand([QUOTE_SINGLE + "$KISHI_TEST_Q"])
+        assert result == ["$KISHI_TEST_Q"]
+        del os.environ["KISHI_TEST_Q"]
+
+    def test_double_quoted_variable_expanded(self):
+        """Double-quoted $VAR should be expanded."""
+        from kishi.lexer import QUOTE_DOUBLE
+        os.environ["KISHI_TEST_Q2"] = "hello"
+        result = Expander.expand([QUOTE_DOUBLE + "$KISHI_TEST_Q2"])
+        assert result == ["hello"]
+        del os.environ["KISHI_TEST_Q2"]
+
+    def test_double_quoted_glob_not_expanded(self):
+        """Double-quoted *.txt should NOT be glob-expanded."""
+        from kishi.lexer import QUOTE_DOUBLE
+        result = Expander.expand([QUOTE_DOUBLE + "*.txt"])
+        assert result == ["*.txt"]
+
+    def test_single_quoted_glob_not_expanded(self):
+        """Single-quoted *.txt should NOT be glob-expanded."""
+        from kishi.lexer import QUOTE_SINGLE
+        result = Expander.expand([QUOTE_SINGLE + "*.txt"])
+        assert result == ["*.txt"]
+
+    def test_unquoted_variable_still_expanded(self):
+        """Unquoted $VAR (no prefix) should still be expanded normally."""
+        os.environ["KISHI_TEST_Q3"] = "world"
+        result = Expander.expand(["$KISHI_TEST_Q3"])
+        assert result == ["world"]
+        del os.environ["KISHI_TEST_Q3"]
+
