@@ -1,5 +1,7 @@
 #  Kishi Shell (v1.9.3)
 
+[![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
+
 > **If you like this project, please give it a ⭐ star on [GitHub](https://github.com/ozhangebesoglu/Kishi-Shell) and vote on [AUR](https://aur.archlinux.org/packages/kishi-shell)! Your support helps the project grow.**
 
 [![asciicast](https://asciinema.org/a/LQ7jQXtlGHgNoEVa.svg)](https://asciinema.org/a/LQ7jQXtlGHgNoEVa)
@@ -55,6 +57,7 @@ The Kishi Terminal at the bottom of the screen works in live sync with the Folde
 ![Interactive Terminal](assets/interactive_terminal.png)
 ![Ctrl+C Signal Handling](assets/dashboard_sigint.png)
 ![Terminal Commands](assets/dashboard_terminal_ls.png)
+![Dashboard Bash Help](assets/dashboard_bash_help.png)
 
 ### 3-) Standalone File Explorer
 The IDE Explorer also works as a standalone dual-pane file browser outside the dashboard. Navigate your entire filesystem, preview directories, and edit code with line numbers.

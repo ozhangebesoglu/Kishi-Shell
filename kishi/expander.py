@@ -31,7 +31,7 @@ class Expander:
             elif '$' in arg:
                 def var_replacer(match):
                     v = match.group(1)
-                    return LOCAL_VARS.get(v, os.environ.get(v, ""))
+                    return LOCAL_VARS.get(v, os.environ.get(v, ALIASES.get(v, "")))
                 arg = re.sub(r'\$([A-Za-z0-9_]+)', var_replacer, arg)
 
             # 3. Tilde Expansion

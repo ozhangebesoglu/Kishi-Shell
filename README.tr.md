@@ -1,5 +1,7 @@
 #  Kishi Shell (v1.9.3)
 
+[![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
+
 > **Bu projeyi beğendiyseniz lütfen [GitHub](https://github.com/ozhangebesoglu/Kishi-Shell)'da ⭐ yıldız verin ve [AUR](https://aur.archlinux.org/packages/kishi-shell)'da oy kullanın! Desteğiniz projenin büyümesine yardımcı olur.**
 
 [![asciicast](https://asciinema.org/a/LQ7jQXtlGHgNoEVa.svg)](https://asciinema.org/a/LQ7jQXtlGHgNoEVa)
@@ -55,6 +57,7 @@ Ekranın altındaki Kishi Terminali, Klasör Ağacıyla canlı senkronize çalı
 ![Interactive Terminal](assets/interactive_terminal.png)
 ![Ctrl+C Sinyal Yönetimi](assets/dashboard_sigint.png)
 ![Terminal Komutları](assets/dashboard_terminal_ls.png)
+![Dashboard Bash Help](assets/dashboard_bash_help.png)
 
 ### 3-) Bağımsız Dosya Gezgini
 IDE Explorer, dashboard dışında bağımsız bir çift panelli dosya tarayıcısı olarak da çalışır. Tüm dosya sisteminizde gezinin, dizinleri önizleyin ve satır numaralı editörle kod düzenleyin.

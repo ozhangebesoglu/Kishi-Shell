@@ -12,7 +12,7 @@ elif pip3 install --user . 2>/dev/null; then
     echo "- Package installed in user directory (~/.local)."
 else
     echo ""
-    echo "⚠️  Standard installation failed (your system may use PEP 668 protection)."
+    echo "[!] Standard installation failed (your system may use PEP 668 protection)."
     echo "   Choose an option:"
     echo "   1) Install with --break-system-packages (not recommended)"
     echo "   2) Create a virtual environment (recommended)"
@@ -27,11 +27,11 @@ else
             python3 -m venv ~/.kishi-venv
             ~/.kishi-venv/bin/pip install .
             echo ""
-            echo "ℹ️  Add this alias to your ~/.bashrc or ~/.zshrc:"
+            echo "[i] Add this alias to your ~/.bashrc or ~/.zshrc:"
             echo "   alias kishi='~/.kishi-venv/bin/kishi'"
             ;;
         *)
-            echo "❌ Installation cancelled."
+            echo "[X] Installation cancelled."
             exit 1
             ;;
     esac
@@ -39,21 +39,21 @@ fi
 
 # Verify the installation was successful
 if ! python3 -c "from kishi.main import main" 2>/dev/null; then
-    echo "❌ Error: Kishi module could not be loaded. Installation may have failed."
+    echo "[X] Error: Kishi module could not be loaded. Installation may have failed."
     echo "   Please run 'pip3 install .' manually and check the error output."
     exit 1
 fi
 
 echo "[2/2] Verifying the 'kishi' command..."
 if command -v kishi >/dev/null 2>&1; then
-    echo "✅ 'kishi' command is ready."
+    echo "[OK] 'kishi' command is ready."
 else
-    echo "⚠️  'kishi' was not found in PATH. You may need to add ~/.local/bin to your PATH."
+    echo "[!] 'kishi' was not found in PATH. You may need to add ~/.local/bin to your PATH."
     echo "   Run: export PATH=\"\$HOME/.local/bin:\$PATH\""
 fi
 
 echo "========================================="
-echo "✅ Installation Complete!"
+echo "[OK] Installation Complete!"
 echo "Type 'kishi' in your terminal to launch Kishi Shell."
 echo "To uninstall: pip3 uninstall kishi-shell"
 echo "========================================="
