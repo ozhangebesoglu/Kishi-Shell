@@ -32,7 +32,7 @@ install_system_deps() {
             ;;
         fedora|nobara)
             echo "[1/3] Installing system dependencies (dnf)..."
-            sudo dnf install -y python3 python3-pip python3-prompt_toolkit python3-psutil
+            sudo dnf install -y python3 python3-pip python3-prompt-toolkit python3-psutil
             ;;
         rhel|centos|rocky|alma)
             echo "[1/3] Installing system dependencies (dnf)..."
