@@ -60,7 +60,11 @@ def load_plugins():
                     mod = importlib.util.module_from_spec(spec)
                     spec.loader.exec_module(mod)
                     if hasattr(mod, "PLUGIN_COMMANDS") and isinstance(mod.PLUGIN_COMMANDS, dict):
-                        state.BUILTINS.update(mod.PLUGIN_COMMANDS)
+                        expected_cmd = filename[:-3]
+                        if expected_cmd in mod.PLUGIN_COMMANDS:
+                            state.BUILTINS[expected_cmd] = mod.PLUGIN_COMMANDS[expected_cmd]
+                        else:
+                            print(f"{state.COLOR_YELLOW}Plugin Warning:{state.COLOR_RESET} '{filename}' ignored. It must export exactly '{expected_cmd}' in PLUGIN_COMMANDS.")
             except Exception as e:
                 print(f"{state.COLOR_RED}Plugin Error:{state.COLOR_RESET} Failed to load {filename} - {e}")
 
