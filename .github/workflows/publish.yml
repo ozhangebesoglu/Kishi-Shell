@@ -71,8 +71,8 @@ jobs:
           echo "${{ secrets.AUR_SSH_PRIVATE_KEY }}" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
 
-          # AUR parmak izini güvenli şekilde ekle
-          ssh-keyscan aur.archlinux.org >> ~/.ssh/known_hosts
+          # AUR parmak izini statik ve güvenli şekilde ekle (ssh-keyscan ağ hatalarına karşı)
+          echo "aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN" >> ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
           # SSH Config yapılandırması (Daha güvenli hali)
