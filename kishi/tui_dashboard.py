@@ -15,7 +15,7 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.layout.margins import ScrollbarMargin
 from prompt_toolkit.filters import has_focus
-from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.formatted_text import ANSI, to_formatted_text
 from prompt_toolkit.layout.processors import BeforeInput
 
 def generate_bar(percentage, width=15):
@@ -188,6 +188,7 @@ def kishi_dashboard(args):
         complete_while_typing=True,
         history=FileHistory(history_file),
         auto_suggest=AutoSuggestFromHistory(),
+        enable_history_search=True,
     )
 
     show_explorer = False
@@ -237,17 +238,25 @@ def kishi_dashboard(args):
         right_col
     ])
     
-    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute | [Tab] Switch | [Ctrl+E] Explorer | [Ctrl+Q] Quit ")]))
+    header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Run | [Tab] Complete | [PgUp/PgDn] Scroll | [Shift+Tab] Switch | [Ctrl+E] Explorer | [Ctrl+R] Search | [Ctrl+Q] Quit ")]))
 
     root = FloatContainer(
         content=HSplit([header, body]),
-        floats=[Float(xcursor=True, ycursor=True, content=CompletionsMenu(max_height=8, scroll_offset=1))]
+        floats=[Float(
+            xcursor=True, ycursor=True,
+            allow_cover_cursor=True,
+            content=CompletionsMenu(max_height=10, scroll_offset=1),
+        )]
     )
     layout = Layout(root, focused_element=in_win)
 
     kb = KeyBindings()
 
-    def _scroll_to_bottom():
+    _user_scrolled = [False]
+
+    def _scroll_to_bottom(force=False):
+        if _user_scrolled[0] and not force:
+            return
         full_text = "".join(t[1] for t in terminal_lines)
         line_count = full_text.count('\n')
         try:
@@ -274,8 +283,11 @@ def kishi_dashboard(args):
         _scroll_to_bottom()
 
     def _append_ansi(text):
-        parsed = list(ANSI(text))
-        terminal_lines.extend(parsed)
+        try:
+            parsed = to_formatted_text(ANSI(text))
+            terminal_lines.extend(parsed)
+        except Exception:
+            terminal_lines.append(("", str(text)))
         _trim_lines()
         _scroll_to_bottom()
 
@@ -322,7 +334,7 @@ def kishi_dashboard(args):
             else:
                 layout.focus(explorer.left_window)
 
-    @kb.add("tab")
+    @kb.add("s-tab")
     def toggle_focus(event):
         if layout.has_focus(in_win):
             layout.focus(out_win)
@@ -338,48 +350,100 @@ def kishi_dashboard(args):
         else:
             layout.focus(in_win)
 
-    @kb.add("c-r", filter=has_focus(input_buffer))
-    async def fuzzy_search(event):
+    _rsearch = {"matches": [], "idx": 0, "updating": False}
+
+    def _reset_rsearch(buff):
+        if not _rsearch["updating"]:
+            _rsearch["matches"] = []
+            _rsearch["idx"] = 0
+
+    input_buffer.on_text_changed += _reset_rsearch
+
+    def _load_history_commands():
         if not os.path.exists(history_file):
-            return
+            return []
         try:
-            with open(history_file, 'r') as f:
+            with open(history_file, "r") as f:
                 lines = f.readlines()
-            parsed = []
-            for l in lines:
-                l = l.strip()
-                if not l or l.startswith('#'):
-                    continue
-                if l.startswith('+'):
-                    cmd = l[1:]
-                    if cmd:
-                        parsed.append(cmd)
-                else:
-                    parsed.append(l)
-            unique = list(dict.fromkeys(reversed(parsed)))
-            from kishi.tui_fuzzy import run_fuzzy_history
-            selected = await run_fuzzy_history(unique)
-            if selected:
-                input_buffer.text = selected
-                input_buffer.cursor_position = len(selected)
         except Exception:
-            pass
+            return []
+        cmds = []
+        for l in lines:
+            l = l.strip()
+            if not l or l.startswith("#"):
+                continue
+            if l.startswith("+"):
+                cmd = l[1:]
+                if cmd:
+                    cmds.append(cmd)
+            else:
+                cmds.append(l)
+        return list(dict.fromkeys(reversed(cmds)))
+
+    @kb.add("c-r", filter=has_focus(input_buffer))
+    def reverse_search(event):
+        st = _rsearch
+        if st["matches"]:
+            st["idx"] = (st["idx"] + 1) % len(st["matches"])
+            st["updating"] = True
+            input_buffer.text = st["matches"][st["idx"]]
+            input_buffer.cursor_position = len(input_buffer.text)
+            st["updating"] = False
+            return
+
+        query = input_buffer.text.strip().lower()
+        unique = _load_history_commands()
+        if query:
+            matches = [c for c in unique if query in c.lower()]
+        else:
+            matches = unique
+
+        if matches:
+            st["matches"] = matches
+            st["idx"] = 0
+            st["updating"] = True
+            input_buffer.text = matches[0]
+            input_buffer.cursor_position = len(input_buffer.text)
+            st["updating"] = False
+
+    def _get_max_y():
+        full_text = "".join(t[1] for t in terminal_lines)
+        return full_text.count('\n')
+
+    def _do_scroll(delta):
+        from prompt_toolkit.data_structures import Point
+        pos = out_control._cursor_position
+        max_y = _get_max_y()
+        new_y = max(0, min(pos.y + delta, max_y))
+        out_control._cursor_position = Point(x=0, y=new_y)
+        _user_scrolled[0] = new_y < max_y
 
     @kb.add("up", filter=has_focus(out_control))
     def scroll_up(event):
-        from prompt_toolkit.data_structures import Point
-        pos = out_control._cursor_position
-        if pos.y > 0:
-            out_control._cursor_position = Point(x=0, y=pos.y - 3)
+        _do_scroll(-3)
 
     @kb.add("down", filter=has_focus(out_control))
     def scroll_down(event):
+        _do_scroll(3)
+
+    @kb.add("pageup")
+    def page_up(event):
+        _do_scroll(-15)
+
+    @kb.add("pagedown")
+    def page_down(event):
+        _do_scroll(15)
+
+    @kb.add("end")
+    def scroll_end(event):
+        _user_scrolled[0] = False
+        _scroll_to_bottom(force=True)
+
+    @kb.add("home")
+    def scroll_home(event):
         from prompt_toolkit.data_structures import Point
-        full_text = "".join(t[1] for t in terminal_lines)
-        max_y = full_text.count('\n')
-        pos = out_control._cursor_position
-        if pos.y < max_y:
-            out_control._cursor_position = Point(x=0, y=min(pos.y + 3, max_y))
+        out_control._cursor_position = Point(x=0, y=0)
+        _user_scrolled[0] = True
 
     combined_kb = merge_key_bindings([kb, explorer.kb])
 
@@ -399,6 +463,13 @@ def kishi_dashboard(args):
             return
 
         if not cmd: return
+
+        _user_scrolled[0] = False
+
+        try:
+            input_buffer.history.store_string(cmd)
+        except Exception:
+            pass
 
         if cmd.lower() in ("exit", "quit", "q"):
             event.app.exit(result=0)

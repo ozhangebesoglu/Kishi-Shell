@@ -115,6 +115,7 @@ class ExplorerState:
             self.current_dir = os.path.abspath(path)
             self.selected_index = 0
             self.refresh()
+            os.chdir(self.current_dir)
             return True
         return False
 
@@ -124,6 +125,7 @@ class ExplorerState:
             self.current_dir = parent
             self.selected_index = 0
             self.refresh()
+            os.chdir(self.current_dir)
             return True
         return False
 
