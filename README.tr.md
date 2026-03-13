@@ -81,6 +81,30 @@ Daktilo gibi tuşlara bastıkça binlerce eski komutunuz arasından karakter eş
 
 ---
 
+##  Eklenti Pazaryeri (Marketplace)
+Kishi Shell, Python gücüyle çalışan dinamik bir eklenti ekosistemine sahiptir. Terminalden hiç çıkmadan ve oturumu yeniden başlatmadan resmi eklentilere göz atabilir, kurabilir ve yönetebilirsiniz.
+
+### Eklentileri Yönetmek
+GitHub API üzerinden dinamik olarak tüm mevcut eklentileri (plugin) incelemek için:
+```bash
+Kishi$ -> plugin market
+```
+
+Bir eklenti kurmak için (Örn: `weather`, `qr`, `ip`):
+```bash
+Kishi$ -> plugin install weather
+[*] Downloading 'weather.py' from marketplace...
+[+] Plugin 'weather' installed successfully!
+```
+Eklenti bir kez kurulduğunda, normal komutlar kadar hızlı çalışır ve Kishi'nin olay döngüsüne entegre olur.
+
+- Kurulu eklentileri listeleme: `plugin list`
+- Bir eklentiyi kaldırma: `plugin remove weather`
+
+Geliştiriciler için: Kendi eklentilerinizi resmi Kishi ekosistemine dahil etmek isterseniz [Kishi-Plugins](https://github.com/ozhangebesoglu/Kishi-Plugins) deposunu inceleyebilirsiniz.
+
+---
+
 ##  Scripting ve Çevre Değişkenleri (Environment)
 
 ### Değişken Atamak ve Okumak (`export`)

@@ -74,6 +74,12 @@ def kishi_help(args):
   setup           : Add Kishi profile to Windows Terminal (Win) or show shell tips (Linux/Mac).
   setup --default : Set Kishi as the default Windows Terminal profile.
 
+[PLUGIN MARKETPLACE]:
+  plugin market   : Browse all available extensions in the official Github repository.
+  plugin list     : Show currently installed plugins on your system.
+  plugin install X: Download and install a plugin directly into Kishi Shell.
+  plugin remove X : Uninstall an active plugin.
+
 [CUSTOM FUNCTIONS (myfunc)]:
   Create custom sub-routines for repetitive tasks:
   Example: 

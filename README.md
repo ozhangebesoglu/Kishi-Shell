@@ -81,6 +81,30 @@ As you type like a typewriter, it performs character matching among thousands of
 
 ---
 
+##  Plugin Marketplace
+Kishi Shell features a dynamic, Python-powered plugin ecosystem. You can browse, install, and manage official extensions natively without leaving the terminal or reloading the environment.
+
+### Managing Plugins
+To browse all available plugins dynamically from the GitHub API:
+```bash
+Kishi$ -> plugin market
+```
+
+To install a plugin (e.g., `weather`, `qr`, `ip`):
+```bash
+Kishi$ -> plugin install weather
+[*] Downloading 'weather.py' from marketplace...
+[+] Plugin 'weather' installed successfully!
+```
+Once installed, the command operates at native speed and is fully integrated into Kishi's event loop. 
+
+- List installed plugins: `plugin list`
+- Remove a plugin: `plugin remove weather`
+
+For developers: To submit your own plugins to the official Kishi ecosystem, check the [Kishi-Plugins](https://github.com/ozhangebesoglu/Kishi-Plugins) repository.
+
+---
+
 ##  Scripting and Environment Variables
 
 ### Setting and Reading Variables (`export`)
