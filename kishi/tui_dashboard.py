@@ -15,6 +15,8 @@ from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.document import Document
 from prompt_toolkit.layout.margins import ScrollbarMargin
 from prompt_toolkit.filters import has_focus
+from prompt_toolkit.formatted_text import ANSI
+from prompt_toolkit.layout.processors import BeforeInput
 
 def generate_bar(percentage, width=15):
     filled = int(width * percentage / 100)
@@ -116,17 +118,48 @@ def get_cpu_info(): return cpu_text_cache
 def get_ram_info(): return ram_text_cache
 def get_net_info(): return net_text_cache
 
+
+def _build_prompt_tuples():
+    tuples = []
+    if "VIRTUAL_ENV" in os.environ:
+        venv_name = os.path.basename(os.environ["VIRTUAL_ENV"])
+        tuples.append(("ansicyan", f"({venv_name}) "))
+    tuples.append(("fg:#ffbf00 bold", "Kishi$ -> "))
+    return tuples
+
+
+def _build_info_tuples():
+    tuples = []
+    try:
+        branch = subprocess.check_output(
+            ["git", "branch", "--show-current"],
+            stderr=subprocess.DEVNULL, text=True, cwd=os.getcwd()
+        ).strip()
+        if branch:
+            tuples.extend([
+                ("ansiyellow", " git:("),
+                ("ansired", branch),
+                ("ansiyellow", ") "),
+            ])
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+
+    cwd = os.getcwd()
+    home = os.environ.get("HOME", "")
+    display_cwd = cwd.replace(home, "~", 1) if home and cwd.startswith(home) else cwd
+    tuples.append(("ansicyan", f"[{display_cwd}]"))
+    return tuples
+
+
 def kishi_dashboard(args):
     psutil.cpu_percent(interval=None)
     psutil.cpu_percent(interval=None, percpu=True)
     
-    # Left panels (GPU, RAM)
     left_col = HSplit([
         Frame(Window(content=FormattedTextControl(text=get_gpu_info)), title="[ GPU ]"),
         Frame(Window(content=FormattedTextControl(text=get_ram_info)), title="[ Memory & Swap ]")
     ], width=28)
     
-    # Right panels (CPU, DISK/NET)
     right_col = HSplit([
         Frame(Window(content=FormattedTextControl(text=get_cpu_info)), title="[ CPU ]"),
         Frame(Window(content=FormattedTextControl(text=get_net_info)), title="[ Storage & Net ]")
@@ -137,17 +170,55 @@ def kishi_dashboard(args):
     from prompt_toolkit.filters import Condition
     from prompt_toolkit.key_binding import merge_key_bindings
 
-    output_buffer = Buffer(multiline=True)
-    output_buffer.text = " [KISHI] Kishi Shell Dashboard Command Center\n =====================================\n - Type 'exit' or 'q' to return to normal shell.\n - You can execute fast read-only commands here.\n\n"
-    
-    input_buffer = Buffer(multiline=False)
+    terminal_lines = []
+    terminal_lines.extend([
+        ("class:title", " [KISHI] Dashboard Terminal\n"),
+        ("", " =====================================\n"),
+        ("ansigray", " Type 'exit' or 'q' to return.\n\n"),
+    ])
+
+    from kishi.ui import KishiCompleter, KishiLexer
+    from prompt_toolkit.history import FileHistory
+    from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
+
+    history_file = os.path.join(os.environ.get("HOME", "/"), ".kishi_history")
+    input_buffer = Buffer(
+        multiline=False,
+        completer=KishiCompleter(),
+        complete_while_typing=True,
+        history=FileHistory(history_file),
+        auto_suggest=AutoSuggestFromHistory(),
+    )
 
     show_explorer = False
     explorer = ExplorerUI(os.getcwd(), standalone=False)
     running_process = None
-    
-    out_win = Window(content=BufferControl(buffer=output_buffer, focusable=True), wrap_lines=True, right_margins=[ScrollbarMargin(display_arrows=True)], always_hide_cursor=True)
-    in_win = Window(content=BufferControl(buffer=input_buffer), height=1)
+
+    def get_terminal_text():
+        return terminal_lines
+
+    out_control = FormattedTextControl(
+        text=get_terminal_text,
+        focusable=True,
+        show_cursor=True,
+    )
+
+    out_win = Window(
+        content=out_control,
+        wrap_lines=True,
+        right_margins=[ScrollbarMargin(display_arrows=True)],
+        cursorline=False,
+    )
+
+    from prompt_toolkit.layout.menus import CompletionsMenu
+    from prompt_toolkit.layout.containers import Float, FloatContainer
+
+    in_control = BufferControl(
+        buffer=input_buffer,
+        input_processors=[BeforeInput(_build_prompt_tuples)],
+        lexer=KishiLexer(),
+    )
+    in_win = Window(content=in_control, height=1)
 
     explorer_col = ConditionalContainer(
         content=Frame(explorer.container, title="[ IDE Explorer ]"),
@@ -167,10 +238,59 @@ def kishi_dashboard(args):
     ])
     
     header = Window(height=1, content=FormattedTextControl(text=[("class:header", " KISHI DASHBOARD 8.0 | [Enter] Execute | [Tab] Switch | [Ctrl+E] Explorer | [Ctrl+Q] Quit ")]))
-    layout = Layout(HSplit([header, body]), focused_element=in_win)
-    
+
+    root = FloatContainer(
+        content=HSplit([header, body]),
+        floats=[Float(xcursor=True, ycursor=True, content=CompletionsMenu(max_height=8, scroll_offset=1))]
+    )
+    layout = Layout(root, focused_element=in_win)
+
     kb = KeyBindings()
-    
+
+    def _scroll_to_bottom():
+        full_text = "".join(t[1] for t in terminal_lines)
+        line_count = full_text.count('\n')
+        try:
+            from prompt_toolkit.data_structures import Point
+            out_control._cursor_position = Point(x=0, y=line_count)
+        except Exception:
+            pass
+
+    def _trim_lines():
+        full_text = "".join(t[1] for t in terminal_lines)
+        line_count = full_text.count('\n')
+        if line_count > 300:
+            target = line_count - 200
+            removed = 0
+            for i, (_, text) in enumerate(terminal_lines):
+                removed += text.count('\n')
+                if removed >= target:
+                    terminal_lines[:] = terminal_lines[i + 1:]
+                    break
+
+    def _append_styled(tuples):
+        terminal_lines.extend(tuples)
+        _trim_lines()
+        _scroll_to_bottom()
+
+    def _append_ansi(text):
+        parsed = list(ANSI(text))
+        terminal_lines.extend(parsed)
+        _trim_lines()
+        _scroll_to_bottom()
+
+    def _run_builtin(builtin_func, builtin_args):
+        import io, contextlib
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+            try:
+                builtin_func(builtin_args)
+            except SystemExit:
+                pass
+        output = f.getvalue()
+        if output:
+            _append_ansi(output)
+
     @kb.add("c-q")
     def _(event):
         if running_process and running_process.poll() is None:
@@ -186,8 +306,7 @@ def kishi_dashboard(args):
                 running_process.send_signal(signal.SIGINT)
             except:
                 running_process.kill()
-            new_text = output_buffer.text + "\n^C\n"
-            output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
+            _append_styled([("ansired bold", "\n^C\n")])
             running_process = None
         
     @kb.add("c-e")
@@ -218,30 +337,51 @@ def kishi_dashboard(args):
             layout.focus(in_win)
         else:
             layout.focus(in_win)
-            
-    # Include explorer's standalone keybindings cleanly.
-    combined_kb = merge_key_bindings([kb, explorer.kb])
-            
-    def _append_output(text):
-        current = output_buffer.text
-        lines = (current + text).split('\n')
-        if len(lines) > 200:
-            current = "\n".join(lines[-200:])
-        else:
-            current = current + text
-        output_buffer.document = Document(text=current, cursor_position=len(current))
 
-    def _run_builtin(builtin_func, args):
-        import io, contextlib
-        f = io.StringIO()
-        with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
-            try:
-                builtin_func(args)
-            except SystemExit:
-                pass
-        output = f.getvalue()
-        if output:
-            _append_output(output)
+    @kb.add("c-r", filter=has_focus(input_buffer))
+    async def fuzzy_search(event):
+        if not os.path.exists(history_file):
+            return
+        try:
+            with open(history_file, 'r') as f:
+                lines = f.readlines()
+            parsed = []
+            for l in lines:
+                l = l.strip()
+                if not l or l.startswith('#'):
+                    continue
+                if l.startswith('+'):
+                    cmd = l[1:]
+                    if cmd:
+                        parsed.append(cmd)
+                else:
+                    parsed.append(l)
+            unique = list(dict.fromkeys(reversed(parsed)))
+            from kishi.tui_fuzzy import run_fuzzy_history
+            selected = await run_fuzzy_history(unique)
+            if selected:
+                input_buffer.text = selected
+                input_buffer.cursor_position = len(selected)
+        except Exception:
+            pass
+
+    @kb.add("up", filter=has_focus(out_control))
+    def scroll_up(event):
+        from prompt_toolkit.data_structures import Point
+        pos = out_control._cursor_position
+        if pos.y > 0:
+            out_control._cursor_position = Point(x=0, y=pos.y - 3)
+
+    @kb.add("down", filter=has_focus(out_control))
+    def scroll_down(event):
+        from prompt_toolkit.data_structures import Point
+        full_text = "".join(t[1] for t in terminal_lines)
+        max_y = full_text.count('\n')
+        pos = out_control._cursor_position
+        if pos.y < max_y:
+            out_control._cursor_position = Point(x=0, y=min(pos.y + 3, max_y))
+
+    combined_kb = merge_key_bindings([kb, explorer.kb])
 
     @kb.add("enter", filter=has_focus(input_buffer))
     def execute_cmd(event):
@@ -253,7 +393,7 @@ def kishi_dashboard(args):
             try:
                 running_process.stdin.write((cmd + "\n").encode('utf-8'))
                 running_process.stdin.flush()
-                _append_output(f"{cmd}\n")
+                _append_styled([("", f"{cmd}\n")])
             except Exception:
                 pass
             return
@@ -264,7 +404,12 @@ def kishi_dashboard(args):
             event.app.exit(result=0)
             return
 
-        _append_output(f"\nKishi$ -> {cmd}\n")
+        prompt_line = [("", "\n")]
+        prompt_line.extend(_build_prompt_tuples())
+        prompt_line.append(("bold", cmd))
+        prompt_line.extend(_build_info_tuples())
+        prompt_line.append(("", "\n"))
+        _append_styled(prompt_line)
 
         try:
             from kishi.lexer import Tokenizer
@@ -299,9 +444,9 @@ def kishi_dashboard(args):
                 explorer.state.current_dir = os.getcwd()
                 explorer.state.refresh()
                 explorer.update_preview()
-                _append_output(f"[DIR] {os.getcwd()}\n")
+                _append_styled([("ansigreen", f" {os.getcwd()}\n")])
             elif cmd_name == "clear":
-                output_buffer.text = ""
+                terminal_lines.clear()
             elif cmd_name in BUILTINS:
                 _run_builtin(BUILTINS[cmd_name], expanded)
             elif cmd_name in FUNCTIONS:
@@ -317,12 +462,12 @@ def kishi_dashboard(args):
                         pass
                 output = f.getvalue()
                 if output:
-                    _append_output(output)
+                    _append_ansi(output)
             else:
                 running_process = subprocess.Popen(
                     expanded, cwd=cwd,
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-                    bufsize=0, env={**os.environ, "PYTHONUNBUFFERED": "1"}
+                    bufsize=0, env={**os.environ, "PYTHONUNBUFFERED": "1", "TERM": "xterm-256color"}
                 )
 
                 def read_stdout():
@@ -334,7 +479,7 @@ def kishi_dashboard(args):
                                     break
                                 time.sleep(0.01)
                                 continue
-                            _append_output(data.decode('utf-8', 'replace'))
+                            _append_ansi(data.decode('utf-8', 'replace'))
                             try:
                                 app.invalidate()
                             except: pass
@@ -344,7 +489,7 @@ def kishi_dashboard(args):
                 threading.Thread(target=read_stdout, daemon=True).start()
 
         except Exception as e:
-            _append_output(f"Error: {e}\n")
+            _append_styled([("ansired", f"Error: {e}\n")])
         
     style = Style.from_dict({
         "header": "bg:#dd4400 #ffffff bold",
@@ -353,6 +498,12 @@ def kishi_dashboard(args):
         "bg": "ansidarkgray",
         "invalid": "ansired",
         "input_frame": "ansiyellow bold",
+        "command.valid": "ansigreen bold",
+        "command.invalid": "ansired bold",
+        "string": "ansiyellow",
+        "variable": "ansicyan",
+        "operator": "ansimagenta",
+        "path.invalid": "ansired underline",
     })
     
     app = Application(
