@@ -222,39 +222,76 @@ def kishi_dashboard(args):
     # Include explorer's standalone keybindings cleanly.
     combined_kb = merge_key_bindings([kb, explorer.kb])
             
+    def _append_output(text):
+        current = output_buffer.text
+        lines = (current + text).split('\n')
+        if len(lines) > 200:
+            current = "\n".join(lines[-200:])
+        else:
+            current = current + text
+        output_buffer.document = Document(text=current, cursor_position=len(current))
+
+    def _run_builtin(builtin_func, args):
+        import io, contextlib
+        f = io.StringIO()
+        with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+            try:
+                builtin_func(args)
+            except SystemExit:
+                pass
+        output = f.getvalue()
+        if output:
+            _append_output(output)
+
     @kb.add("enter", filter=has_focus(input_buffer))
     def execute_cmd(event):
         nonlocal running_process
         cmd = input_buffer.text.strip()
         input_buffer.text = ""
-        
-        # If a process is already interactive, forward input to its stdin
+
         if running_process and running_process.poll() is None:
             try:
-                # Write to unbuffered binary pipe
                 running_process.stdin.write((cmd + "\n").encode('utf-8'))
                 running_process.stdin.flush()
-                # Echo the user's input directly into the terminal
-                new_text = output_buffer.text + f"{cmd}\n"
-                output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
-            except Exception as e:
+                _append_output(f"{cmd}\n")
+            except Exception:
                 pass
             return
 
         if not cmd: return
-        
+
         if cmd.lower() in ("exit", "quit", "q"):
             event.app.exit(result=0)
             return
-            
-        # Append Command
-        new_text = output_buffer.text + f"\nKishi$ -> {cmd}\n"
-        output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
-        
+
+        _append_output(f"\nKishi$ -> {cmd}\n")
+
         try:
+            from kishi.lexer import Tokenizer
+            from kishi.expander import Expander
+            from kishi.state import ALIASES, BUILTINS, FUNCTIONS, LOCAL_VARS
+            import shlex
+
+            tokens = Tokenizer.tokenize(cmd)
+            if not tokens:
+                return
+
+            cmd_name = tokens[0]
+
+            if cmd_name in ALIASES:
+                aliased = shlex.split(ALIASES[cmd_name])
+                tokens = aliased + tokens[1:]
+                cmd_name = tokens[0]
+
+            expanded = Expander.expand(tokens)
+            if not expanded:
+                return
+            cmd_name = expanded[0]
+
             cwd = explorer.state.current_dir
-            if cmd.startswith("cd "):
-                target = cmd.split(" ", 1)[1]
+
+            if cmd_name == "cd":
+                target = expanded[1] if len(expanded) > 1 else os.environ.get("HOME", "/")
                 path = os.path.expanduser(target)
                 if not os.path.isabs(path):
                     path = os.path.join(cwd, path)
@@ -262,50 +299,52 @@ def kishi_dashboard(args):
                 explorer.state.current_dir = os.getcwd()
                 explorer.state.refresh()
                 explorer.update_preview()
-                new_text = output_buffer.text + f"[DIR] Changed to: {os.getcwd()}\n"
-                output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
-            elif cmd == "clear":
+                _append_output(f"[DIR] {os.getcwd()}\n")
+            elif cmd_name == "clear":
                 output_buffer.text = ""
+            elif cmd_name in BUILTINS:
+                _run_builtin(BUILTINS[cmd_name], expanded)
+            elif cmd_name in FUNCTIONS:
+                from kishi.executor import execute_ast
+                for i in range(1, len(expanded)):
+                    LOCAL_VARS[str(i)] = expanded[i]
+                import io, contextlib
+                f = io.StringIO()
+                with contextlib.redirect_stdout(f), contextlib.redirect_stderr(f):
+                    try:
+                        execute_ast(FUNCTIONS[cmd_name])
+                    except SystemExit:
+                        pass
+                output = f.getvalue()
+                if output:
+                    _append_output(output)
             else:
-                # Launch custom background interactive process. Use bufsize=0 to force unbuffered binary streaming
                 running_process = subprocess.Popen(
-                    cmd, shell=True, cwd=cwd,
+                    expanded, cwd=cwd,
                     stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                     bufsize=0, env={**os.environ, "PYTHONUNBUFFERED": "1"}
                 )
-                
-                # Setup daemon thread to stream output back to the UI
+
                 def read_stdout():
                     while True:
                         try:
-                            # Read any chunk up to 1024 without waiting for \n
                             data = running_process.stdout.read(1024)
                             if not data:
                                 if running_process.poll() is not None:
                                     break
                                 time.sleep(0.01)
                                 continue
-                                
-                            text = data.decode('utf-8', 'replace')
-                            current_text = output_buffer.text
-                            lines = (current_text + text).split('\n')
-                            if len(lines) > 200:
-                                current_text = "\n".join(lines[-200:])
-                            else:
-                                current_text = current_text + text
-                                
-                            output_buffer.document = Document(text=current_text, cursor_position=len(current_text))
+                            _append_output(data.decode('utf-8', 'replace'))
                             try:
                                 app.invalidate()
                             except: pass
                         except Exception:
                             break
-                            
+
                 threading.Thread(target=read_stdout, daemon=True).start()
-                
+
         except Exception as e:
-            new_text = output_buffer.text + f"Error: {e}\n"
-            output_buffer.document = Document(text=new_text, cursor_position=len(new_text))
+            _append_output(f"Error: {e}\n")
         
     style = Style.from_dict({
         "header": "bg:#dd4400 #ffffff bold",
