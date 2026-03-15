@@ -15,6 +15,8 @@ SYSTEM_COMMANDS = []
 BUILTINS = {} # Will be populated by builtins.py
 
 KISHI_SESSION = None
+IS_LOGIN_SHELL = False
+IS_INTERACTIVE = False
 
 def load_system_commands():
     """Loads executable system commands into memory"""
