@@ -33,24 +33,45 @@ Terminale `kishi` yazarak Kishi Shell'i başlatabilirsiniz. Çıkmak için `exit
 
 ---
 
-##  Kishi'yi Login Shell Olarak Kullanma
+##  Yükleyici Nasıl Çalışır
 
-Kishi güvenle varsayılan login shell olarak ayarlanabilir. Profile sourcing, non-interactive çalıştırma ve otomatik fallback desteği vardır.
+### Linux (`install.sh`)
+Yükleyici dağıtımınızı otomatik algılar (Arch, Fedora, Debian/Ubuntu, openSUSE, Void, vb.) ve:
+1. Sistem bağımlılıklarını (`python3`, `pip`, `prompt_toolkit`, `psutil`) paket yöneticiniz ile kurar
+2. `pip3 install .` çalıştırır — PEP 668 koruması engelliyor ise `--break-system-packages` veya sanal ortam (`~/.kishi-venv`) seçenekleri sunar
+3. `kishi` komutunun PATH'inizde çalışır durumda olduğunu doğrular
+
+### Windows (`install.bat`)
+1. `pip install .` çalıştırır (`pip`, `python -m pip`, `python3 -m pip` sırasıyla dener)
+2. Python Scripts dizinini otomatik algılayıp kullanıcı PATH'ine ekler
+3. Her zaman `python -m kishi` ile de çalıştırabilirsiniz
+
+---
+
+##  Kishi'yi Login Shell Olarak Kullanma (İsteğe Bağlı)
+
+> **Not:** Kishi normal bir shell olarak mükemmel çalışır — terminale `kishi` yazmanız yeterlidir. Login shell olarak ayarlamak tamamen isteğe bağlıdır ve sadece Kishi'yi varsayılan sistem shell'iniz yapmak isterseniz gereklidir.
+
+Kishi'yi login shell olarak ayarlamak isterseniz:
 
 ```bash
-# Kishi'yi izin verilen shell'lere ekle
-echo /usr/local/bin/kishi | sudo tee -a /etc/shells
+# 1. Kishi'yi izin verilen shell'lere kaydet
+kishi --setup
+# veya manuel olarak:
+echo $(which kishi) | sudo tee -a /etc/shells
 
-# Varsayılan shell olarak ayarla
-chsh -s /usr/local/bin/kishi
+# 2. Varsayılan shell olarak ayarla
+chsh -s $(which kishi)
+
+# İstediğiniz zaman bash'a geri dönebilirsiniz:
+chsh -s /bin/bash
 ```
 
-**Login Shell Özellikleri:**
+**Güvenlik Özellikleri:**
+- **Fallback koruması:** Kishi başlangıçta çökerse otomatik olarak `/bin/bash` veya `/bin/sh`'a düşer — sisteminiz asla kilitlenmez
 - **Profile sourcing:** Giriş yapıldığında `/etc/profile` ve `~/.profile` (veya `~/.bash_profile`) otomatik yüklenir
-- **Non-interactive mod:** Masaüstü yöneticileri (GDM, SDDM, LightDM) için `kishi -c "komut"` düzgün çalışır
-- **Pipe/script modu:** `echo "echo merhaba" | kishi` takılmadan çalışır
-- **Fallback güvenliği:** Kishi başlangıçta çökerse otomatik olarak `/bin/bash` veya `/bin/sh`'a düşer — sisteminiz asla kilitlenmez
-- **Sinyal yönetimi:** SIGHUP (terminal kapanma) ve SIGTERM (kapatma) sinyalleri düzgün işlenir
+- **Masaüstü yöneticisi uyumlu:** GDM, SDDM, LightDM için `kishi -c "exec gnome-session"` düzgün çalışır
+- **Non-interactive mod:** Pipe'lar (`echo "echo merhaba" | kishi`) ve scriptler takılmadan çalışır
 
 **Çalıştırma Modları:**
 ```bash

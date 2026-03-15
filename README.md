@@ -33,24 +33,45 @@ Type `kishi` in your terminal to launch Kishi Shell. Type `exit` to return to yo
 
 ---
 
-##  Using Kishi as Your Login Shell
+##  How the Installer Works
 
-Kishi can safely be set as your default login shell. It supports full login shell mode with profile sourcing, non-interactive execution, and automatic fallback.
+### Linux (`install.sh`)
+The installer automatically detects your distro (Arch, Fedora, Debian/Ubuntu, openSUSE, Void, etc.) and:
+1. Installs system dependencies (`python3`, `pip`, `prompt_toolkit`, `psutil`) via your package manager
+2. Runs `pip3 install .` — if PEP 668 protection blocks it, you can choose between `--break-system-packages` or a virtual environment (`~/.kishi-venv`)
+3. Verifies the `kishi` command is available in your PATH
+
+### Windows (`install.bat`)
+1. Runs `pip install .` (tries `pip`, `python -m pip`, `python3 -m pip`)
+2. Auto-detects the Python Scripts directory and adds it to your user PATH
+3. You can always run with `python -m kishi` as a fallback
+
+---
+
+##  Using Kishi as Your Login Shell (Optional)
+
+> **Note:** Kishi works perfectly as a regular shell — just type `kishi` to launch it. Setting it as a login shell is entirely optional and only needed if you want Kishi to be your default system shell.
+
+If you want to set Kishi as your login shell:
 
 ```bash
-# Add kishi to allowed shells
-echo /usr/local/bin/kishi | sudo tee -a /etc/shells
+# 1. Register kishi as an allowed shell
+kishi --setup
+# or manually:
+echo $(which kishi) | sudo tee -a /etc/shells
 
-# Set as default login shell
-chsh -s /usr/local/bin/kishi
+# 2. Set as your default login shell
+chsh -s $(which kishi)
+
+# To revert back to bash at any time:
+chsh -s /bin/bash
 ```
 
-**Login Shell Features:**
-- **Profile sourcing:** Automatically sources `/etc/profile` and `~/.profile` (or `~/.bash_profile`) on login
-- **Non-interactive mode:** Properly handles `kishi -c "command"` for display managers (GDM, SDDM, LightDM)
-- **Pipe/script mode:** `echo "echo hello" | kishi` works without blocking
-- **Fallback safety:** If Kishi crashes on startup, it automatically falls back to `/bin/bash` or `/bin/sh` — your system will never be locked out
-- **Signal handling:** Properly handles SIGHUP (terminal close) and SIGTERM (shutdown)
+**Safety Features:**
+- **Fallback protection:** If Kishi crashes on startup, it automatically falls back to `/bin/bash` or `/bin/sh` — your system will never be locked out
+- **Profile sourcing:** Automatically sources `/etc/profile` and `~/.profile` (or `~/.bash_profile`) so your environment is properly set up
+- **Display manager compatible:** Properly handles `kishi -c "exec gnome-session"` for GDM, SDDM, LightDM
+- **Non-interactive mode:** Pipes (`echo "echo hello" | kishi`) and scripts work without blocking
 
 **Invocation Modes:**
 ```bash
