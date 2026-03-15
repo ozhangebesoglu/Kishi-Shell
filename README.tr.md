@@ -33,6 +33,36 @@ Terminale `kishi` yazarak Kishi Shell'i başlatabilirsiniz. Çıkmak için `exit
 
 ---
 
+##  Kishi'yi Login Shell Olarak Kullanma
+
+Kishi güvenle varsayılan login shell olarak ayarlanabilir. Profile sourcing, non-interactive çalıştırma ve otomatik fallback desteği vardır.
+
+```bash
+# Kishi'yi izin verilen shell'lere ekle
+echo /usr/local/bin/kishi | sudo tee -a /etc/shells
+
+# Varsayılan shell olarak ayarla
+chsh -s /usr/local/bin/kishi
+```
+
+**Login Shell Özellikleri:**
+- **Profile sourcing:** Giriş yapıldığında `/etc/profile` ve `~/.profile` (veya `~/.bash_profile`) otomatik yüklenir
+- **Non-interactive mod:** Masaüstü yöneticileri (GDM, SDDM, LightDM) için `kishi -c "komut"` düzgün çalışır
+- **Pipe/script modu:** `echo "echo merhaba" | kishi` takılmadan çalışır
+- **Fallback güvenliği:** Kishi başlangıçta çökerse otomatik olarak `/bin/bash` veya `/bin/sh`'a düşer — sisteminiz asla kilitlenmez
+- **Sinyal yönetimi:** SIGHUP (terminal kapanma) ve SIGTERM (kapatma) sinyalleri düzgün işlenir
+
+**Çalıştırma Modları:**
+```bash
+kishi                              # İnteraktif mod (prompt + arayüz)
+kishi -c "ls -la"                  # Tek komut çalıştır ve çık
+kishi --login                      # Login shell modu (profilleri yükle)
+kishi -l -c "exec gnome-session"   # Login + komut (masaüstü yöneticileri kullanır)
+echo "echo merhaba" | kishi        # Pipe modu (non-interactive, banner yok)
+```
+
+---
+
 ##  İleri Düzey Görsel Arayüzler (TUI)
 Kishi Shell size Midnight Commander veya `top`/`htop` indirtmez. Kendi içerisinde %100 Python ile renderladığı sıfır-gecikmeli araçlara sahiptir.
 
@@ -49,11 +79,26 @@ Arka planda izole olarak çalışan bu sistem; CPU Çekirdek Kullanımını, RAM
 ![IDE Layout](assets/ide_layout.png)
 ![IDE + Vite Dev Server](assets/dashboard_ide_vite.png)
 
+#### Dashboard Klavye Kısayolları
+
+| Kısayol | İşlev |
+|---------|-------|
+| `Enter` | Komut çalıştır |
+| `Tab` | Komut ve yol otomatik tamamlama |
+| `Ctrl + E` | IDE Explorer'ı aç/kapat (dosya ağacı + editör) |
+| `Shift + Tab` | Paneller arası geçiş |
+| `Ctrl + R` | Komut geçmişinde fuzzy arama |
+| `Ctrl + C` | Çalışan programa SIGINT gönder |
+| `Ctrl + Q` | Dashboard'dan çık |
+| `PgUp / PgDn` | Terminal çıktısını kaydır |
+| `Home / End` | Çıktının başına / sonuna atla |
+
 ### 2-) İnteraktif Terminal & Dizin Senkronizasyonu
 Ekranın altındaki Kishi Terminali, Klasör Ağacıyla canlı senkronize çalışır! 
 - Komut satırına `cd` yazıp klasör değiştirdiğinizde Ağaç da otomatik güncellenir.
 - `input()` gibi sizden veri bekleyen uzun soluklu Python veya Bash scriptlerini çalıştırdığınızda arayüz asla donmaz! Arka plan ikili veri akışı (binary streaming) sayesinde komut çıkıntıları direkt arayüze basılır ve en alttaki komut satırından yazdığınız girdiler doğrudan kodun `stdin` girişine yönlendirilir.
 - **`Ctrl + C`** ile çalışan process'i dashboard'u kapatmadan öldürebilir, ardından terminali kullanmaya devam edebilirsiniz.
+- Terminal gerektiren programlar (`python`, `node`, `java`) tam pseudo-terminal (PTY) desteği sayesinde düzgün çalışır.
 ![Interactive Terminal](assets/interactive_terminal.png)
 ![Ctrl+C Sinyal Yönetimi](assets/dashboard_sigint.png)
 ![Terminal Komutları](assets/dashboard_terminal_ls.png)
@@ -84,24 +129,87 @@ Daktilo gibi tuşlara bastıkça binlerce eski komutunuz arasından karakter eş
 ##  Eklenti Pazaryeri (Marketplace)
 Kishi Shell, Python gücüyle çalışan dinamik bir eklenti ekosistemine sahiptir. Terminalden hiç çıkmadan ve oturumu yeniden başlatmadan resmi eklentilere göz atabilir, kurabilir ve yönetebilirsiniz.
 
-### Eklentileri Yönetmek
-GitHub API üzerinden dinamik olarak tüm mevcut eklentileri (plugin) incelemek için:
-```bash
-Kishi$ -> plugin market
-```
+### Eklenti Komutları
 
-Bir eklenti kurmak için (Örn: `weather`, `qr`, `ip`):
+| Komut | Açıklama |
+|-------|----------|
+| `plugin list` | Kurulu eklentileri listele |
+| `plugin market` | Marketteki eklentilere göz at |
+| `plugin install <isim>` | Marketten eklenti kur |
+| `plugin install <url>` | Direkt GitHub raw URL'den eklenti kur |
+| `plugin remove <isim>` | Eklentiyi kaldır |
+
+### Mevcut Eklentiler
+
+| Eklenti | Komut | Açıklama | Kullanım |
+|---------|-------|----------|----------|
+| **weather** | `weather` | [wttr.in](https://wttr.in) üzerinden canlı hava durumu | `weather` (otomatik konum) veya `weather Istanbul` |
+| **ip** | `ip` | [ipinfo.io](https://ipinfo.io) üzerinden genel IP ve konum bilgisi | `ip` |
+| **qr** | `qr` | Terminalde ASCII QR kod oluştur | `qr https://github.com` veya `qr "Merhaba"` |
+| **hello** | `hello` | Demo eklenti — market bağlantınızı test edin | `hello` |
+
+### Örnek Kullanım
+
 ```bash
+# Markete göz at
+Kishi$ -> plugin market
+ Available Plugins in Kishi Marketplace:
+  - hello.py
+  - weather.py
+  - ip.py
+  - qr.py
+
+# Eklenti kur
 Kishi$ -> plugin install weather
 [*] Downloading 'weather.py' from marketplace...
 [+] Plugin 'weather' installed successfully!
+
+# Hemen kullan — yeniden başlatmaya gerek yok
+Kishi$ -> weather Istanbul
+Istanbul: ⛅️ +18°C
+
+# Kurulu eklentileri kontrol et
+Kishi$ -> plugin list
+ Installed Plugins:
+  - weather
+
+# Artık gerekmiyorsa kaldır
+Kishi$ -> plugin remove weather
+[+] Plugin 'weather' removed.
 ```
-Eklenti bir kez kurulduğunda, normal komutlar kadar hızlı çalışır ve Kishi'nin olay döngüsüne entegre olur.
 
-- Kurulu eklentileri listeleme: `plugin list`
-- Bir eklentiyi kaldırma: `plugin remove weather`
+Eklentiler bir kez kurulduğunda normal komutlar kadar hızlı çalışır ve Kishi'nin olay döngüsüne entegre olur. Eklentiler `~/.kishi/plugins/` dizininde saklanır ve shell başlangıcında otomatik olarak yüklenir.
 
-Geliştiriciler için: Kendi eklentilerinizi resmi Kishi ekosistemine dahil etmek isterseniz [Kishi-Plugins](https://github.com/ozhangebesoglu/Kishi-Plugins) deposunu inceleyebilirsiniz.
+### Kendi Eklentinizi Oluşturma
+
+Bir `.py` dosyası oluşturun — **dosya adı, dışa aktardığı komut adıyla birebir aynı olmalıdır:**
+
+```python
+# benikomutum.py
+def benikomutum(args):
+    """args[0] = komut adı, args[1:] = kullanıcı argümanları"""
+    if len(args) < 2:
+        print("Kullanım: benikomutum <metin>")
+        return 1
+
+    print(f"Merhaba, {args[1]}!")
+    return 0  # çıkış kodu: 0 = başarılı
+
+PLUGIN_COMMANDS = {
+    "benikomutum": benikomutum  # anahtar dosya adıyla EŞLEŞMELİ (benikomutum.py -> "benikomutum")
+}
+```
+
+Herhangi bir kaynaktan kurun:
+```bash
+# Resmi marketten (Kishi-Plugins reposuna PR gönderin)
+plugin install benikomutum
+
+# Veya herhangi bir raw GitHub URL'den
+plugin install https://raw.githubusercontent.com/kullanici/repo/main/benikomutum.py
+```
+
+Daha fazla bilgi için [Kishi-Plugins](https://github.com/ozhangebesoglu/Kishi-Plugins) deposuna göz atın.
 
 ---
 
@@ -126,6 +234,32 @@ Sisteme Hosgeldiniz ozhangebesoglu
 drwxrwxr-x 2 user user 4096 ...
 ```
 Fonksiyonları ard arda noktalı virgül (`;`) ile zincirleyebilir, tek satırda devasa otomasyon scriptleri çalıştırabilirsiniz. Dahası, komutlarınızın ve çıktılarınızın ortasına `|`, `&&`, `>`, `>>` gibi karmaşık Shell operatörleri de sıkıştırabilirsiniz!
+
+---
+
+##  Mimari
+
+Kishi, SOLID prensiplerine uygun klasik bir **derleyici hattı (compiler pipeline)** üzerine inşa edilmiştir:
+
+```
+Girdi → Lexer → Parser → Expander → Executor
+          │        │         │          │
+       token'lar   AST    genişletilmiş fork/exec
+                           argümanlar   pipeline'lar
+```
+
+| Modül | Sorumluluk |
+|-------|-----------|
+| `lexer.py` | Tokenizasyon, tırnak takibi |
+| `parser.py` | Recursive descent parser, AST oluşturma |
+| `expander.py` | `$VAR`, glob, tilde, `$(cmd)` genişletme |
+| `executor.py` | fork/exec, pipeline'lar, yönlendirmeler, iş kontrolü |
+| `builtins.py` | 26 yerleşik komut |
+| `tui_dashboard.py` | VS Code tarzı dashboard (5 SOLID sınıfı) |
+| `tui_explorer.py` | Çift panelli IDE explorer |
+| `tui_fuzzy.py` | Ctrl+R fuzzy arama motoru |
+| `ui.py` | Sözdizimi vurgulama, tamamlama, kısayollar |
+| `main.py` | Login shell, mod algılama, profile sourcing |
 
 ---
 

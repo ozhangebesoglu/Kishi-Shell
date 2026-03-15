@@ -33,6 +33,36 @@ Type `kishi` in your terminal to launch Kishi Shell. Type `exit` to return to yo
 
 ---
 
+##  Using Kishi as Your Login Shell
+
+Kishi can safely be set as your default login shell. It supports full login shell mode with profile sourcing, non-interactive execution, and automatic fallback.
+
+```bash
+# Add kishi to allowed shells
+echo /usr/local/bin/kishi | sudo tee -a /etc/shells
+
+# Set as default login shell
+chsh -s /usr/local/bin/kishi
+```
+
+**Login Shell Features:**
+- **Profile sourcing:** Automatically sources `/etc/profile` and `~/.profile` (or `~/.bash_profile`) on login
+- **Non-interactive mode:** Properly handles `kishi -c "command"` for display managers (GDM, SDDM, LightDM)
+- **Pipe/script mode:** `echo "echo hello" | kishi` works without blocking
+- **Fallback safety:** If Kishi crashes on startup, it automatically falls back to `/bin/bash` or `/bin/sh` — your system will never be locked out
+- **Signal handling:** Properly handles SIGHUP (terminal close) and SIGTERM (shutdown)
+
+**Invocation Modes:**
+```bash
+kishi                              # Interactive mode (prompt + UI)
+kishi -c "ls -la"                  # Execute a single command and exit
+kishi --login                      # Login shell mode (source profiles)
+kishi -l -c "exec gnome-session"   # Login + command (used by display managers)
+echo "echo hello" | kishi          # Pipe mode (non-interactive, no banner)
+```
+
+---
+
 ##  Advanced Visual Interfaces (TUI)
 Kishi Shell doesn't make you install Midnight Commander or `top`/`htop`. It has its own zero-latency tools rendered 100% in Python.
 
@@ -49,11 +79,26 @@ Running isolated in the background, this system displays CPU Core Usage, RAM / S
 ![IDE Layout](assets/ide_layout.png)
 ![IDE + Vite Dev Server](assets/dashboard_ide_vite.png)
 
+#### Dashboard Keyboard Shortcuts
+
+| Shortcut | Action |
+|----------|--------|
+| `Enter` | Execute command |
+| `Tab` | Auto-complete commands and paths |
+| `Ctrl + E` | Toggle IDE Explorer (file tree + editor) |
+| `Shift + Tab` | Cycle focus between panels |
+| `Ctrl + R` | Fuzzy search command history |
+| `Ctrl + C` | Send SIGINT to running process |
+| `Ctrl + Q` | Quit dashboard |
+| `PgUp / PgDn` | Scroll terminal output |
+| `Home / End` | Jump to top / bottom of output |
+
 ### 2-) Interactive Terminal & Directory Synchronization
 The Kishi Terminal at the bottom of the screen works in live sync with the Folder Tree! 
 - When you type `cd` in the command line to change directories, the Tree updates automatically.
 - When you run long-running Python or Bash scripts that wait for your input (like `input()`), the interface never freezes! Thanks to background binary streaming, command outputs are printed directly to the interface, and inputs you type in the command line at the bottom are forwarded directly to the code's `stdin` input.
 - You can send **`Ctrl + C`** to kill a running process without closing the dashboard, then continue using the terminal normally.
+- Programs that require a terminal (`python`, `node`, `java`) work properly thanks to full pseudo-terminal (PTY) support.
 ![Interactive Terminal](assets/interactive_terminal.png)
 ![Ctrl+C Signal Handling](assets/dashboard_sigint.png)
 ![Terminal Commands](assets/dashboard_terminal_ls.png)
@@ -84,24 +129,87 @@ As you type like a typewriter, it performs character matching among thousands of
 ##  Plugin Marketplace
 Kishi Shell features a dynamic, Python-powered plugin ecosystem. You can browse, install, and manage official extensions natively without leaving the terminal or reloading the environment.
 
-### Managing Plugins
-To browse all available plugins dynamically from the GitHub API:
-```bash
-Kishi$ -> plugin market
-```
+### Plugin Commands
 
-To install a plugin (e.g., `weather`, `qr`, `ip`):
+| Command | Description |
+|---------|-------------|
+| `plugin list` | List all installed plugins |
+| `plugin market` | Browse available plugins in the marketplace |
+| `plugin install <name>` | Install a plugin by name from the marketplace |
+| `plugin install <url>` | Install a plugin from a direct GitHub raw URL |
+| `plugin remove <name>` | Uninstall a plugin |
+
+### Available Plugins
+
+| Plugin | Command | Description | Usage |
+|--------|---------|-------------|-------|
+| **weather** | `weather` | Live weather from [wttr.in](https://wttr.in) | `weather` (auto-detect location) or `weather Istanbul` |
+| **ip** | `ip` | Public IP & location info via [ipinfo.io](https://ipinfo.io) | `ip` |
+| **qr** | `qr` | Generate ASCII QR codes in your terminal | `qr https://github.com` or `qr "Hello World"` |
+| **hello** | `hello` | Demo plugin — test your marketplace connection | `hello` |
+
+### Example Usage
+
 ```bash
+# Browse the marketplace
+Kishi$ -> plugin market
+ Available Plugins in Kishi Marketplace:
+  - hello.py
+  - weather.py
+  - ip.py
+  - qr.py
+
+# Install a plugin
 Kishi$ -> plugin install weather
 [*] Downloading 'weather.py' from marketplace...
 [+] Plugin 'weather' installed successfully!
+
+# Use it immediately — no restart needed
+Kishi$ -> weather Istanbul
+Istanbul: ⛅️ +18°C
+
+# Check what you have installed
+Kishi$ -> plugin list
+ Installed Plugins:
+  - weather
+
+# Remove when you no longer need it
+Kishi$ -> plugin remove weather
+[+] Plugin 'weather' removed.
 ```
-Once installed, the command operates at native speed and is fully integrated into Kishi's event loop. 
 
-- List installed plugins: `plugin list`
-- Remove a plugin: `plugin remove weather`
+Once installed, plugins operate at native speed and are fully integrated into Kishi's event loop. Plugins are stored in `~/.kishi/plugins/` and loaded automatically on shell startup.
 
-For developers: To submit your own plugins to the official Kishi ecosystem, check the [Kishi-Plugins](https://github.com/ozhangebesoglu/Kishi-Plugins) repository.
+### Creating Your Own Plugin
+
+Create a `.py` file where the **filename must exactly match** the command name it exports:
+
+```python
+# mycommand.py
+def mycommand(args):
+    """args[0] = command name, args[1:] = user arguments"""
+    if len(args) < 2:
+        print("Usage: mycommand <text>")
+        return 1
+
+    print(f"Hello, {args[1]}!")
+    return 0  # exit code: 0 = success
+
+PLUGIN_COMMANDS = {
+    "mycommand": mycommand  # key MUST match filename (mycommand.py -> "mycommand")
+}
+```
+
+Install from any source:
+```bash
+# From the official marketplace (submit a PR to Kishi-Plugins repo)
+plugin install mycommand
+
+# Or from any raw GitHub URL
+plugin install https://raw.githubusercontent.com/user/repo/main/mycommand.py
+```
+
+For more details, see the [Kishi-Plugins](https://github.com/ozhangebesoglu/Kishi-Plugins) repository.
 
 ---
 
@@ -126,6 +234,32 @@ Welcome to the System ozhangebesoglu
 drwxrwxr-x 2 user user 4096 ...
 ```
 You can chain functions with semicolons (`;`) and run massive automation scripts in a single line. Moreover, you can squeeze complex Shell operators like `|`, `&&`, `>`, `>>` in between your commands and outputs!
+
+---
+
+##  Architecture
+
+Kishi is built on a classic **compiler pipeline** following SOLID principles:
+
+```
+Input → Lexer → Parser → Expander → Executor
+         │        │         │          │
+      tokens     AST    expanded    fork/exec
+                          args      pipelines
+```
+
+| Module | Responsibility |
+|--------|---------------|
+| `lexer.py` | Tokenization, quote tracking |
+| `parser.py` | Recursive descent parser, AST generation |
+| `expander.py` | `$VAR`, glob, tilde, `$(cmd)` expansion |
+| `executor.py` | fork/exec, pipelines, redirections, job control |
+| `builtins.py` | 26 built-in commands |
+| `tui_dashboard.py` | VS Code-style dashboard (5 SOLID classes) |
+| `tui_explorer.py` | Dual-pane IDE explorer |
+| `tui_fuzzy.py` | Ctrl+R fuzzy search engine |
+| `ui.py` | Syntax highlighting, completions, keybindings |
+| `main.py` | Login shell, mode detection, profile sourcing |
 
 ---
 
