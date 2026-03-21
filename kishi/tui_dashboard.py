@@ -612,13 +612,30 @@ class DashboardUI:
         )
         self.in_win = Window(content=in_control, height=1)
 
-        explorer_col = ConditionalContainer(
-            content=Frame(self.explorer.container, title="[ IDE Explorer ]"),
-            filter=Condition(lambda: self.state.show_explorer)
+        file_list_col = ConditionalContainer(
+            content=self.explorer.left_window,
+            filter=Condition(lambda: self.state.show_explorer),
+        )
+        explorer_divider = ConditionalContainer(
+            content=Window(width=1, char='│', style='class:line'),
+            filter=Condition(lambda: self.state.show_explorer),
+        )
+
+        def _editor_title():
+            if self.state.show_explorer:
+                return "[ IDE Explorer ]"
+            fname = self.explorer.state.get_selected_file()
+            if fname and fname != "..":
+                return f"[ Editor — {fname} ]"
+            return "[ Editor ]"
+
+        editor_frame = Frame(
+            VSplit([file_list_col, explorer_divider, self.explorer.right_window]),
+            title=_editor_title,
         )
 
         center_col = HSplit([
-            explorer_col,
+            editor_frame,
             Frame(self.out_win, title="[ Kishi Terminal ]"),
             Frame(self.in_win, title="[ Command Line ]", style="class:input_frame"),
             compact_bar,
@@ -708,24 +725,21 @@ class DashboardUI:
                 self.state.show_explorer = True
                 self.layout.focus(self.explorer.left_window)
             else:
-                if self.layout.has_focus(self.explorer.left_window):
-                    self.state.show_explorer = False
-                    self.layout.focus(self.in_win)
-                else:
-                    self.layout.focus(self.explorer.left_window)
+                self.state.show_explorer = False
+                self.layout.focus(self.in_win)
 
         @kb.add("s-tab")
         def on_shift_tab(event):
             if self.layout.has_focus(self.in_win):
                 self.layout.focus(self.out_win)
             elif self.layout.has_focus(self.out_win):
+                self.layout.focus(self.explorer.right_window)
+            elif self.layout.has_focus(self.explorer.right_window):
                 if self.state.show_explorer:
                     self.layout.focus(self.explorer.left_window)
                 else:
                     self.layout.focus(self.in_win)
             elif self.layout.has_focus(self.explorer.left_window):
-                self.layout.focus(self.explorer.right_window)
-            elif self.layout.has_focus(self.explorer.right_window):
                 self.layout.focus(self.in_win)
             else:
                 self.layout.focus(self.in_win)

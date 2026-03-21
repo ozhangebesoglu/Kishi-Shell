@@ -10,6 +10,13 @@ from prompt_toolkit.filters import has_focus
 from prompt_toolkit.document import Document
 from prompt_toolkit.layout.margins import NumberedMargin
 from prompt_toolkit.enums import EditingMode
+from prompt_toolkit.lexers import DynamicLexer, PygmentsLexer
+
+try:
+    from pygments.lexers import get_lexer_for_filename
+    HAS_PYGMENTS = True
+except ImportError:
+    HAS_PYGMENTS = False
 
 class IconProvider:
     """Provides UI icons based on file extensions (Open/Closed Principle)."""
@@ -140,6 +147,7 @@ class ExplorerUI:
         self.state = ExplorerState(start_dir)
         self.editor_buffer = Buffer(multiline=True)
         self.standalone = standalone
+        self._current_lexer = None
         self.kb = KeyBindings()
         self.setup_ui()
         self.update_preview()
@@ -147,24 +155,43 @@ class ExplorerUI:
     def set_buffer_text(self, text):
         self.editor_buffer.document = Document(text=text, cursor_position=0)
 
+    def _get_lexer(self):
+        """Return the current PygmentsLexer based on selected file extension."""
+        return self._current_lexer
+
+    def _resolve_lexer(self, filename):
+        """Resolve the Pygments lexer based on file extension."""
+        if not HAS_PYGMENTS or not filename:
+            self._current_lexer = None
+            return
+        try:
+            pygments_lexer = get_lexer_for_filename(filename)
+            self._current_lexer = PygmentsLexer(type(pygments_lexer))
+        except Exception:
+            self._current_lexer = None
+
     def update_preview(self):
         self.state.current_file_path = None
         self.state.status_msg = ""
         
         selected_file = self.state.get_selected_file()
         if not selected_file:
+            self._resolve_lexer(None)
             self.set_buffer_text("Directory is empty.")
             return
 
         if selected_file == "..":
+            self._resolve_lexer(None)
             self.set_buffer_text("Action: Go to Parent Directory\nShortcut: [Backspace] or [Left Arrow]")
             return
 
         path = os.path.join(self.state.current_dir, selected_file)
         
         if os.path.isdir(path):
+            self._resolve_lexer(None)
             self.set_buffer_text(FileSystemProvider.format_directory_contents(path))
         else:
+            self._resolve_lexer(selected_file)
             content, is_valid = FileSystemProvider.read_file(path)
             self.set_buffer_text(content)
             if is_valid:
@@ -213,7 +240,11 @@ class ExplorerUI:
     def setup_ui(self):
         self.left_window = Window(content=FormattedTextControl(text=self.get_left_text, focusable=True), wrap_lines=False, width=35)
         self.right_window = Window(
-            content=BufferControl(buffer=self.editor_buffer, focusable=True), 
+            content=BufferControl(
+                buffer=self.editor_buffer,
+                focusable=True,
+                lexer=DynamicLexer(self._get_lexer),
+            ), 
             wrap_lines=True,
             left_margins=[NumberedMargin(display_tildes=True)]
         )
