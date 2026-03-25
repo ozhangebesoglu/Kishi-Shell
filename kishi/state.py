@@ -30,3 +30,20 @@ def load_system_commands():
                 if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
                     cmds.add(f)
     SYSTEM_COMMANDS = list(cmds)
+
+def get_cursor_shape():
+    """Returns the prompt_toolkit CursorShape based on CURSOR_SHAPE env variable."""
+    try:
+        from prompt_toolkit.cursor_shapes import CursorShape
+    except ImportError:
+        return None
+    shape_str = os.environ.get("CURSOR_SHAPE", "BLINKING_BLOCK").upper()
+    mapping = {
+        "BLOCK": CursorShape.BLOCK,
+        "BLINKING_BLOCK": CursorShape.BLINKING_BLOCK,
+        "UNDERLINE": CursorShape.UNDERLINE,
+        "BLINKING_UNDERLINE": CursorShape.BLINKING_UNDERLINE,
+        "BEAM": CursorShape.BEAM,
+        "BLINKING_BEAM": CursorShape.BLINKING_BEAM,
+    }
+    return mapping.get(shape_str, CursorShape.BLINKING_BLOCK)

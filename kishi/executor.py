@@ -4,7 +4,7 @@ import shlex
 import signal
 
 from .state import COLOR_RED, COLOR_YELLOW, ALIASES, LOCAL_VARS, FUNCTIONS, BUILTINS
-from .parser import SequenceNode, IfNode, WhileNode, ForNode, FunctionDefNode, LogicNode, PipelineNode
+from .parser import SequenceNode, IfNode, WhileNode, ForNode, FunctionDefNode, LogicNode, PipelineNode, CaseNode, UntilNode, SelectNode
 from .expander import Expander
 from .job_control import JobManager
 
@@ -315,6 +315,53 @@ def execute_ast(node):
             LOCAL_VARS[node.var_name] = item
             last_status = execute_ast(node.body_ast)
         return last_status
+
+    elif isinstance(node, UntilNode):
+        last_status = 0
+        while execute_ast(node.condition_ast) != 0:
+            last_status = execute_ast(node.body_ast)
+        return last_status
+
+    elif isinstance(node, CaseNode):
+        import fnmatch
+        word = node.word
+        # Expand the word
+        expanded = Expander.expand([word])
+        word_val = expanded[0] if expanded else ''
+        
+        for patterns, body_ast in node.cases:
+            exp_patterns = Expander.expand(patterns, globbing=False)
+            for pat in exp_patterns:
+                if fnmatch.fnmatch(word_val, pat):
+                    return execute_ast(body_ast)
+        if node.default_ast:
+            return execute_ast(node.default_ast)
+        return 0
+
+    elif isinstance(node, SelectNode):
+        import sys
+        items = Expander.expand(node.iter_items)
+        if not items:
+            return 1
+        # Display numbered menu
+        for idx, item in enumerate(items, 1):
+            print(f"{idx}) {item}")
+        # Read selection
+        try:
+            reply = input('#? ')
+        except (EOFError, KeyboardInterrupt):
+            print()
+            return 1
+        try:
+            choice = int(reply)
+            if 1 <= choice <= len(items):
+                LOCAL_VARS[node.var_name] = items[choice - 1]
+            else:
+                LOCAL_VARS[node.var_name] = ''
+        except ValueError:
+            LOCAL_VARS[node.var_name] = ''
+        LOCAL_VARS['REPLY'] = reply
+        return execute_ast(node.body_ast)
         
     elif isinstance(node, FunctionDefNode):
         FUNCTIONS[node.func_name] = node.body_ast

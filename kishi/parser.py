@@ -49,6 +49,23 @@ class FunctionDefNode(ASTNode):
         self.func_name = func_name
         self.body_ast = body_ast
 
+class CaseNode(ASTNode):
+    def __init__(self, word, cases, default_ast):
+        self.word = word               # The word to match against
+        self.cases = cases             # List of (patterns_list, body_ast)
+        self.default_ast = default_ast # Body for *) pattern, or None
+
+class UntilNode(ASTNode):
+    def __init__(self, condition_ast, body_ast):
+        self.condition_ast = condition_ast
+        self.body_ast = body_ast
+
+class SelectNode(ASTNode):
+    def __init__(self, var_name, iter_items, body_ast):
+        self.var_name = var_name
+        self.iter_items = iter_items
+        self.body_ast = body_ast
+
 class Parser:
     @staticmethod
     def parse(tokens):
@@ -169,6 +186,80 @@ class Parser:
                     
                     seq.statements.append(ForNode(var_name, iter_items, body_ast))
                     continue
+
+                if token == 'until':
+                    push_statement()
+                    stream.consume()
+                    
+                    cond_toks = []
+                    while stream.peek() not in ('do', ';', None):
+                        cond_toks.append(stream.consume())
+                    if stream.peek() == ';': stream.consume()
+                    cond_ast = split_by_logic(cond_toks)
+                    
+                    if stream.peek() == 'do': stream.consume()
+                    
+                    body_ast = parse_sequence(end_tokens=['done'])
+                    
+                    if stream.peek() == 'done': stream.consume()
+                    
+                    seq.statements.append(UntilNode(cond_ast, body_ast))
+                    continue
+
+                if token == 'case':
+                    push_statement()
+                    stream.consume()  # consume 'case'
+                    
+                    word = stream.consume() if stream.peek() else ''
+                    if stream.peek() == 'in': stream.consume()
+                    if stream.peek() == ';': stream.consume()
+                    
+                    cases = []
+                    default_ast = None
+                    
+                    while stream.peek() not in ('esac', None):
+                        # Collect patterns: pattern1 | pattern2 )
+                        patterns = []
+                        while stream.peek() not in (')', None):
+                            tok = stream.consume()
+                            if tok == '|': continue  # separator between patterns
+                            patterns.append(tok)
+                        if stream.peek() == ')': stream.consume()
+                        
+                        # Parse body until ;; or esac
+                        body_ast = parse_sequence(end_tokens=[';;', 'esac'])
+                        if stream.peek() == ';;': stream.consume()
+                        
+                        if patterns == ['*']:
+                            default_ast = body_ast
+                        else:
+                            cases.append((patterns, body_ast))
+                    
+                    if stream.peek() == 'esac': stream.consume()
+                    
+                    seq.statements.append(CaseNode(word, cases, default_ast))
+                    continue
+
+                if token == 'select':
+                    push_statement()
+                    stream.consume()
+                    
+                    var_name = stream.consume() if stream.peek() else 'REPLY'
+                    if stream.peek() == 'in': stream.consume()
+                    
+                    iter_items = []
+                    while stream.peek() not in (';', 'do', None):
+                        iter_items.append(stream.consume())
+                    
+                    if stream.peek() == ';': stream.consume()
+                    if stream.peek() == 'do': stream.consume()
+                    
+                    body_ast = parse_sequence(end_tokens=['done'])
+                    
+                    if stream.peek() == 'done': stream.consume()
+                    
+                    seq.statements.append(SelectNode(var_name, iter_items, body_ast))
+                    continue
                     
                 if token.endswith('()'):
                     push_statement()
@@ -182,11 +273,25 @@ class Parser:
                     seq.statements.append(FunctionDefNode(func_name, body_ast))
                     continue
                     
-                if stream.pos + 1 <= len(stream.toks) and stream.peek() == '()':
+                if stream.pos + 1 < len(stream.toks) and stream.toks[stream.pos + 1] == '()':
                     push_statement()
                     func_name = token
                     stream.consume() # myfunc
                     stream.consume() # ()
+                    
+                    if stream.peek() == '{': stream.consume()
+                    body_ast = parse_sequence(end_tokens=['}'])
+                    if stream.peek() == '}': stream.consume()
+                    
+                    seq.statements.append(FunctionDefNode(func_name, body_ast))
+                    continue
+
+                if stream.pos + 2 < len(stream.toks) and stream.toks[stream.pos + 1] == '(' and stream.toks[stream.pos + 2] == ')':
+                    push_statement()
+                    func_name = token
+                    stream.consume() # myfunc
+                    stream.consume() # (
+                    stream.consume() # )
                     
                     if stream.peek() == '{': stream.consume()
                     body_ast = parse_sequence(end_tokens=['}'])

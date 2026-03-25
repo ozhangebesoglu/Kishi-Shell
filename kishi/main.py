@@ -83,6 +83,7 @@ def load_rc_file():
                 f.write("# Kishi Shell Initialization File\n")
                 f.write("alias ll='ls -la'\n")
                 f.write("alias h='history'\n")
+                f.write("export CURSOR_SHAPE=\"BLINKING_BLOCK\" # Options: BLOCK, BLINKING_BLOCK, UNDERLINE, BLINKING_UNDERLINE, BEAM, BLINKING_BEAM\n")
         except (OSError, IOError):
             pass
         return startup_cmds

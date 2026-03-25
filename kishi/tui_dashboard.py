@@ -673,6 +673,7 @@ class DashboardUI:
 
         combined_kb = merge_key_bindings([self.kb, self.explorer.kb])
 
+        from prompt_toolkit.cursor_shapes import CursorShape
         self.app = Application(
             layout=self.layout,
             key_bindings=combined_kb,
@@ -680,6 +681,7 @@ class DashboardUI:
             full_screen=True,
             refresh_interval=2.5,
             mouse_support=True,
+            cursor=CursorShape.BLINKING_BEAM
         )
 
     def _get_header_text(self):

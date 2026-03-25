@@ -3,6 +3,7 @@ from kishi.lexer import Tokenizer
 from kishi.parser import (
     Parser, CommandNode, PipelineNode, LogicNode,
     SequenceNode, IfNode, WhileNode, ForNode, FunctionDefNode,
+    CaseNode, UntilNode, SelectNode
 )
 
 
@@ -127,6 +128,29 @@ class TestControlFlow:
         node = ast.statements[0]
         assert isinstance(node, ForNode)
         assert node.var_name == "i"
+        assert node.iter_items == ["a", "b", "c"]
+
+    def test_until(self):
+        ast = parse("until test -f lock do sleep 1 done")
+        node = ast.statements[0]
+        assert isinstance(node, UntilNode)
+        assert isinstance(node.body_ast, SequenceNode)
+
+    def test_case(self):
+        ast = parse("case $1 in start | run) echo starting ;; stop) echo stopping ;; *) echo unknown ;; esac")
+        node = ast.statements[0]
+        assert isinstance(node, CaseNode)
+        assert node.word == "$1"
+        assert len(node.cases) == 2
+        assert node.cases[0][0] == ["start", "run"]
+        assert node.cases[1][0] == ["stop"]
+        assert node.default_ast is not None
+
+    def test_select(self):
+        ast = parse("select opt in a b c do echo $opt done")
+        node = ast.statements[0]
+        assert isinstance(node, SelectNode)
+        assert node.var_name == "opt"
         assert node.iter_items == ["a", "b", "c"]
 
 

@@ -330,12 +330,14 @@ class ExplorerUI:
         })
 
         if self.standalone:
+            from prompt_toolkit.cursor_shapes import CursorShape
             self.app = Application(
                 layout=self.layout,
                 key_bindings=kb,
                 style=style,
                 full_screen=True,
-                editing_mode=EditingMode.EMACS
+                editing_mode=EditingMode.EMACS,
+                cursor=CursorShape.BLINKING_BEAM
             )
 
     def run(self):

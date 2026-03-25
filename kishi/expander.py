@@ -1,11 +1,11 @@
 import os
 import glob
 from .state import LOCAL_VARS, ALIASES
-from .lexer import QUOTE_SINGLE, QUOTE_DOUBLE
+from .lexer import QUOTE_SINGLE, QUOTE_DOUBLE, QUOTE_DOLLAR_SINGLE
 
 class Expander:
     @staticmethod
-    def expand(arg_list):
+    def expand(arg_list, globbing=True):
         """Expands globs (*, ?), variables ($VAR) and command substitutions ($(cmd) / `cmd`)"""
         import re
         import subprocess
@@ -18,6 +18,9 @@ class Expander:
             quote_type = None
             if arg.startswith(QUOTE_SINGLE):
                 quote_type = 'single'
+                arg = arg[1:]  # Strip the sentinel prefix
+            elif arg.startswith(QUOTE_DOLLAR_SINGLE):
+                quote_type = 'single'  # Same no-expansion behavior
                 arg = arg[1:]  # Strip the sentinel prefix
             elif arg.startswith(QUOTE_DOUBLE):
                 quote_type = 'double'
@@ -61,7 +64,7 @@ class Expander:
                 arg = os.path.expanduser(arg)
 
             # 4. Globbing (unquoted only)
-            if '*' in arg or '?' in arg:
+            if globbing and ('*' in arg or '?' in arg):
                 matches = glob.glob(arg)
                 if matches:
                     expanded_args.extend(matches)

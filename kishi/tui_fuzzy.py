@@ -104,11 +104,13 @@ def run_fuzzy_history(history_lines):
         "invalid": "ansired"
     })
     
+    from prompt_toolkit.cursor_shapes import CursorShape
     app = Application(
         layout=layout,
         key_bindings=kb,
         style=style,
-        full_screen=True
+        full_screen=True,
+        cursor=CursorShape.BLINKING_BEAM
     )
     
     return app.run_async()

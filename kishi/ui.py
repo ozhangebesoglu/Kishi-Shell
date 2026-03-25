@@ -36,9 +36,9 @@ class KishiLexer(Lexer):
                     result.append(('class:string', word))
                 elif word.startswith('$'):
                     result.append(('class:variable', word))
-                elif word in ('|', '&&', '||', '>', '<', '>>', '2>', '2>>', '2>&1', '&', ';'):
+                elif word in ('|', '&&', '||', '>', '<', '>>', '2>', '2>>', '2>&1', '&', ';', ';;'):
                     result.append(('class:operator', word))
-                elif word in ('if', 'then', 'elif', 'else', 'fi', 'for', 'while', 'in', 'do', 'done', '[', ']', '{', '}'):
+                elif word in ('if', 'then', 'elif', 'else', 'fi', 'for', 'while', 'until', 'in', 'do', 'done', 'case', 'esac', 'select', '[', ']', '{', '}'):
                     result.append(('class:command.valid', word))
                 elif i == 0 or (i > 0 and words[i-1] in ('|', '&&', '||', ';', 'then', 'do', 'else', 'elif')):
                     clean_word = word.strip()
@@ -190,6 +190,7 @@ def get_bottom_toolbar():
 
 def init_prompt_toolkit():
     history_file = os.path.join(os.environ.get("HOME", "/"), ".kishi_history")
+    from kishi.state import get_cursor_shape
     
     return PromptSession(
         history=FileHistory(history_file),
@@ -199,5 +200,6 @@ def init_prompt_toolkit():
         style=kishi_style,
         key_bindings=kishi_bindings,
         bottom_toolbar=get_bottom_toolbar,
-        complete_while_typing=True
+        complete_while_typing=True,
+        cursor=get_cursor_shape()
     )

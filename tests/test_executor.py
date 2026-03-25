@@ -10,6 +10,7 @@ from kishi import state
 from kishi.parser import (
     SequenceNode, PipelineNode, CommandNode, LogicNode,
     IfNode, WhileNode, ForNode, FunctionDefNode,
+    CaseNode, UntilNode, SelectNode
 )
 from kishi.executor import execute_ast, execute_pipeline, process_command_line, get_close_match_suggestion
 
@@ -458,6 +459,134 @@ class TestWhileNode:
         execute_ast(node)
 
         body_mock.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Until Node
+# ---------------------------------------------------------------------------
+
+class TestUntilNode:
+    def test_loops_until_condition_true(self):
+        """Until should loop until condition returns zero (true)."""
+        counter = {"n": 0}
+
+        def cond_fn(args):
+            if counter["n"] < 3:
+                return 1  # false
+            return 0  # true
+
+        def body_fn(args):
+            counter["n"] += 1
+            return 0
+
+        state.BUILTINS["_until_cond"] = cond_fn
+        state.BUILTINS["_until_body"] = body_fn
+
+        cond = _make_sequence(_make_pipeline(["_until_cond"]))
+        body = _make_sequence(_make_pipeline(["_until_body"]))
+        node = UntilNode(cond, body)
+        execute_ast(node)
+
+        assert counter["n"] == 3
+
+    def test_true_from_start(self):
+        """Until with immediately true condition should not execute body."""
+        state.BUILTINS["_always_true"] = lambda args: 0
+        body_mock = MagicMock(return_value=0)
+        state.BUILTINS["_until_body_skip"] = body_mock
+
+        cond = _make_sequence(_make_pipeline(["_always_true"]))
+        body = _make_sequence(_make_pipeline(["_until_body_skip"]))
+        node = UntilNode(cond, body)
+        execute_ast(node)
+
+        body_mock.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Case Node
+# ---------------------------------------------------------------------------
+
+class TestCaseNode:
+    def test_matches_exact_string(self):
+        """Case should match exact string patterns."""
+        cmd1_mock = MagicMock(return_value=1)
+        cmd2_mock = MagicMock(return_value=2)
+        state.BUILTINS["_case1"] = cmd1_mock
+        state.BUILTINS["_case2"] = cmd2_mock
+
+        cases = [
+            (["foo"], _make_sequence(_make_pipeline(["_case1"]))),
+            (["bar"], _make_sequence(_make_pipeline(["_case2"]))),
+        ]
+        node = CaseNode("bar", cases, None)
+        assert execute_ast(node) == 2
+        cmd1_mock.assert_not_called()
+        cmd2_mock.assert_called_once()
+
+    def test_matches_glob_pattern(self):
+        """Case should support glob patterns with fnmatch."""
+        cmd_mock = MagicMock(return_value=0)
+        state.BUILTINS["_case_glob"] = cmd_mock
+
+        cases = [
+            (["*.txt"], _make_sequence(_make_pipeline(["_case_glob"]))),
+        ]
+        node = CaseNode("hello.txt", cases, None)
+        execute_ast(node)
+        cmd_mock.assert_called_once()
+
+    def test_executes_default_ast(self):
+        """Case should execute default AST if no pattern matches."""
+        def_mock = MagicMock(return_value=9)
+        state.BUILTINS["_case_def"] = def_mock
+
+        cases = [
+            (["foo", "bar"], _make_sequence(_make_pipeline(["_nope"]))),
+        ]
+        def_ast = _make_sequence(_make_pipeline(["_case_def"]))
+        node = CaseNode("unknown", cases, def_ast)
+        assert execute_ast(node) == 9
+        def_mock.assert_called_once()
+
+
+# ---------------------------------------------------------------------------
+# Select Node
+# ---------------------------------------------------------------------------
+
+class TestSelectNode:
+    @patch("builtins.print")
+    @patch("builtins.input")
+    def test_select_valid_choice(self, mock_input, mock_print):
+        """Select should present menu, wait for choice, and assign variable."""
+        mock_input.return_value = "2"
+        body_mock = MagicMock(return_value=0)
+        state.BUILTINS["_select_body"] = body_mock
+
+        body = _make_sequence(_make_pipeline(["_select_body"]))
+        node = SelectNode("myvar", ["apple", "banana", "cherry"], body)
+        execute_ast(node)
+
+        # Variables set
+        assert state.LOCAL_VARS["myvar"] == "banana"
+        assert state.LOCAL_VARS["REPLY"] == "2"
+        body_mock.assert_called_once()
+
+    @patch("builtins.print")
+    @patch("builtins.input")
+    def test_select_invalid_choice(self, mock_input, mock_print):
+        """Select with invalid choice sets variable to empty string."""
+        mock_input.return_value = "99"
+        body_mock = MagicMock(return_value=0)
+        state.BUILTINS["_select_invalid"] = body_mock
+
+        body = _make_sequence(_make_pipeline(["_select_invalid"]))
+        node = SelectNode("myvar", ["a", "b"], body)
+        execute_ast(node)
+
+        assert state.LOCAL_VARS["myvar"] == ""
+        assert state.LOCAL_VARS["REPLY"] == "99"
+        body_mock.assert_called_once()
 
 
 # ---------------------------------------------------------------------------

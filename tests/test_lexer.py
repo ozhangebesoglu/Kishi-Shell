@@ -1,5 +1,5 @@
 import pytest
-from kishi.lexer import Tokenizer, QUOTE_SINGLE, QUOTE_DOUBLE
+from kishi.lexer import Tokenizer, QUOTE_SINGLE, QUOTE_DOUBLE, QUOTE_DOLLAR_SINGLE
 
 
 class TestBasicTokenization:
@@ -128,3 +128,51 @@ class TestQuoteMetadata:
         """Double quotes should preserve glob characters with prefix."""
         result = Tokenizer.tokenize('echo "*.txt"')
         assert result == ["echo", QUOTE_DOUBLE + "*.txt"]
+
+
+class TestDollarSingleQuote:
+    """Tests for $'...' ANSI-C quoting (POSIX 2024)."""
+
+    def test_newline_escape(self):
+        result = Tokenizer.tokenize("echo $'hello\\nworld'")
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "hello\nworld"]
+
+    def test_tab_escape(self):
+        result = Tokenizer.tokenize("echo $'col1\\tcol2'")
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "col1\tcol2"]
+
+    def test_backslash_escape(self):
+        result = Tokenizer.tokenize("echo $'back\\\\slash'")
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "back\\slash"]
+
+    def test_apostrophe_escape(self):
+        result = Tokenizer.tokenize("echo $'it\\'s'")
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "it's"]
+
+    def test_hex_escape(self):
+        result = Tokenizer.tokenize("echo $'\\x41\\x42'")
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "AB"]
+
+    def test_unicode_escape(self):
+        result = Tokenizer.tokenize("echo $'\\u00e9'")
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "é"]
+
+    def test_octal_escape(self):
+        result = Tokenizer.tokenize("echo $'\\0101'")
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "A"]
+
+    def test_sentinel_prefix(self):
+        """$'...' tokens must carry QUOTE_DOLLAR_SINGLE prefix."""
+        result = Tokenizer.tokenize("echo $'test'")
+        assert result[1].startswith(QUOTE_DOLLAR_SINGLE)
+
+    def test_unclosed_raises(self):
+        with pytest.raises(ValueError):
+            Tokenizer.tokenize("echo $'unclosed")
+
+    def test_variable_not_expanded(self):
+        """$'...' should not expand variables — the $ inside is literal."""
+        result = Tokenizer.tokenize("echo $'$USER'")
+        # The $USER stays literal in the token (escape processing doesn't touch $)
+        assert result == ["echo", QUOTE_DOLLAR_SINGLE + "$USER"]
+

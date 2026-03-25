@@ -67,8 +67,9 @@ def kishi_help(args):
   [Ctrl + S]     : Saves your text file while inside the Explorer IDE.
 
 [ENVIRONMENT & SCRIPTING]:
-  export X=1     : Sets a persistent environment variable. (Ex: export PATH=/opt:$PATH)
-  unset X        : Removes an assigned variable completely from memory.
+  export X=1           : Sets a persistent environment variable. (Ex: export PATH=/opt:$PATH)
+  unset X              : Removes an assigned variable completely from memory.
+  export CURSOR_SHAPE= : Set to BLOCK, UNDERLINE, BEAM, etc. in ~/.kishirc to change cursor.
 
 [SETUP & INTEGRATION]:
   setup           : Add Kishi profile to Windows Terminal (Win) or show shell tips (Linux/Mac).

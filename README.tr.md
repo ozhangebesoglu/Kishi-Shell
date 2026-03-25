@@ -245,6 +245,13 @@ Kishi$ -> echo $MY_KEY
 ```
 Silmek için `unset MY_KEY` yazmanız yeterlidir. Ortamda yüklü tüm değişkenleri sadece `export` yazarak listeleyebilirsiniz.
 
+### Terminal İmlecini (Cursor) Özelleştirme
+Terminal imlecini tüm TUI arayüzlerinde (Dashboard, Explorer vb.) küresel olarak değiştirmek için `CURSOR_SHAPE` değişkenini dışa aktarabilirsiniz. Bunu `~/.kishirc` dosyanıza ekleyin:
+```bash
+export CURSOR_SHAPE="BLINKING_BLOCK"
+```
+Mevcut seçenekler: `BLOCK`, `BLINKING_BLOCK`, `UNDERLINE`, `BLINKING_UNDERLINE`, `BEAM`, `BLINKING_BEAM`.
+
 ### Kendi Komutlarınızı Üretin (`myfunc`)
 Bir işi sürekli tekrar ediyorsanız Kishi'ye anında kod blokları (Sub-Routines) öğretebilirsiniz. Fonksiyon tanımlamak çok kolaydır:
 

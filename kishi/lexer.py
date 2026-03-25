@@ -4,8 +4,125 @@ from prompt_toolkit.formatted_text import ANSI
 # Sentinel prefixes for quote-type metadata
 QUOTE_SINGLE = '\x01'  # Token was inside single quotes (no expansion)
 QUOTE_DOUBLE = '\x02'  # Token was inside double quotes (variable expansion only)
+QUOTE_DOLLAR_SINGLE = '\x03'  # Token was inside $'...' (C-style escape, no expansion)
 
 class Tokenizer:
+    @staticmethod
+    def _process_dollar_single_escapes(raw):
+        """Process C-style escape sequences inside $'...' strings."""
+        result = []
+        i = 0
+        while i < len(raw):
+            if raw[i] != '\\':
+                result.append(raw[i])
+                i += 1
+                continue
+            # Escape sequence
+            if i + 1 >= len(raw):
+                result.append('\\')
+                break
+            c = raw[i + 1]
+            if c == '\\':
+                result.append('\\')
+                i += 2
+            elif c == "'":
+                result.append("'")
+                i += 2
+            elif c == '"':
+                result.append('"')
+                i += 2
+            elif c == 'a':
+                result.append('\a')
+                i += 2
+            elif c == 'b':
+                result.append('\b')
+                i += 2
+            elif c == 'f':
+                result.append('\f')
+                i += 2
+            elif c == 'n':
+                result.append('\n')
+                i += 2
+            elif c == 'r':
+                result.append('\r')
+                i += 2
+            elif c == 't':
+                result.append('\t')
+                i += 2
+            elif c == 'v':
+                result.append('\v')
+                i += 2
+            elif c == 'x':
+                # \xHH — hex byte
+                hex_str = raw[i+2:i+4]
+                if len(hex_str) >= 1:
+                    # Consume as many hex digits as available (up to 2)
+                    valid = ''
+                    for h in hex_str:
+                        if h in '0123456789abcdefABCDEF':
+                            valid += h
+                        else:
+                            break
+                    if valid:
+                        result.append(chr(int(valid, 16)))
+                        i += 2 + len(valid)
+                    else:
+                        result.append('\\x')
+                        i += 2
+                else:
+                    result.append('\\x')
+                    i += 2
+            elif c == 'u':
+                # \uHHHH — 4-digit unicode
+                hex_str = raw[i+2:i+6]
+                valid = ''
+                for h in hex_str:
+                    if h in '0123456789abcdefABCDEF':
+                        valid += h
+                    else:
+                        break
+                if valid:
+                    result.append(chr(int(valid, 16)))
+                    i += 2 + len(valid)
+                else:
+                    result.append('\\u')
+                    i += 2
+            elif c == 'U':
+                # \UHHHHHHHH — 8-digit unicode
+                hex_str = raw[i+2:i+10]
+                valid = ''
+                for h in hex_str:
+                    if h in '0123456789abcdefABCDEF':
+                        valid += h
+                    else:
+                        break
+                if valid:
+                    result.append(chr(int(valid, 16)))
+                    i += 2 + len(valid)
+                else:
+                    result.append('\\U')
+                    i += 2
+            elif c == '0':
+                # \0nnn — octal byte
+                oct_str = raw[i+2:i+5]
+                valid = ''
+                for o in oct_str:
+                    if o in '01234567':
+                        valid += o
+                    else:
+                        break
+                if valid:
+                    result.append(chr(int(valid, 8)))
+                    i += 2 + len(valid)
+                else:
+                    result.append('\x00')
+                    i += 2
+            else:
+                # Unknown escape — keep backslash + char
+                result.append('\\' + c)
+                i += 2
+        return ''.join(result)
+
     @staticmethod
     def tokenize(cmd_line):
         """Splits text into tokens (arguments and operators). Preserves quoted strings. '&' and '|' inside arguments are not treated as operators."""
@@ -17,6 +134,7 @@ class Tokenizer:
         escape_next = False
         # Track the quote type that covers the current token
         token_has_single = False
+        token_has_dollar_single = False
         token_has_double = False
         
         i = 0
@@ -35,7 +153,37 @@ class Tokenizer:
                 i += 1
                 continue
                 
-            # 2. Quote character handling
+            # 2. $'...' (Dollar-Single-Quote / ANSI-C Quoting)
+            if char == '$' and i + 1 < len(cmd_line) and cmd_line[i+1] == "'" and not in_single_quote and not in_double_quote:
+                i += 2  # skip $'
+                raw_chars = []
+                ds_escape = False
+                while i < len(cmd_line):
+                    if ds_escape:
+                        raw_chars.append('\\' + cmd_line[i])
+                        ds_escape = False
+                        i += 1
+                        continue
+                    if cmd_line[i] == '\\':
+                        ds_escape = True
+                        i += 1
+                        continue
+                    if cmd_line[i] == "'":
+                        i += 1  # skip closing '
+                        break
+                    raw_chars.append(cmd_line[i])
+                    i += 1
+                else:
+                    raise ValueError("Unclosed $' quotation")
+                processed = Tokenizer._process_dollar_single_escapes(''.join(raw_chars))
+                if processed:
+                    current_token.append(processed)
+                    token_has_single = True  # reuse single-quote sentinel behavior for prefix
+                    # Override: mark as dollar-single specifically
+                    token_has_dollar_single = True
+                continue
+
+            # 3. Quote character handling
             if char == "'" and not in_double_quote:
                 in_single_quote = not in_single_quote
                 if in_single_quote:
@@ -61,13 +209,16 @@ class Tokenizer:
             if char.isspace():
                 if current_token:
                     prefix = ''
-                    if token_has_single:
+                    if token_has_dollar_single:
+                        prefix = QUOTE_DOLLAR_SINGLE
+                    elif token_has_single:
                         prefix = QUOTE_SINGLE
                     elif token_has_double:
                         prefix = QUOTE_DOUBLE
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
+                    token_has_dollar_single = False
                     token_has_double = False
                 i += 1
                 continue
@@ -76,10 +227,11 @@ class Tokenizer:
             # Check if current char is '2' followed by '>'
             if char == '2' and i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
                 if current_token:
-                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
+                    token_has_dollar_single = False
                     token_has_double = False
                 if i + 3 < len(cmd_line) and cmd_line[i+1:i+4] == '>&1':
                     tokens.append('2>&1')
@@ -96,10 +248,11 @@ class Tokenizer:
             
             if char == '<':
                 if current_token:
-                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
+                    token_has_dollar_single = False
                     token_has_double = False
                 tokens.append('<')
                 i += 1
@@ -107,10 +260,11 @@ class Tokenizer:
                 
             if char == '>':
                 if current_token:
-                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
+                    token_has_dollar_single = False
                     token_has_double = False
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
                     tokens.append('>>')
@@ -124,10 +278,11 @@ class Tokenizer:
             if char == '&':
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '&':
                     if current_token:
-                        prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                        prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                         tokens.append(prefix + "".join(current_token))
                         current_token = []
                         token_has_single = False
+                        token_has_dollar_single = False
                         token_has_double = False
                     tokens.append('&&')
                     i += 2
@@ -138,10 +293,11 @@ class Tokenizer:
                     
                     if prev_is_space or next_is_space:
                         if current_token:
-                            prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                            prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                             tokens.append(prefix + "".join(current_token))
                             current_token = []
                             token_has_single = False
+                            token_has_dollar_single = False
                             token_has_double = False
                         tokens.append('&')
                         i += 1
@@ -153,21 +309,27 @@ class Tokenizer:
 
             if char == ';':
                 if current_token:
-                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
+                    token_has_dollar_single = False
                     token_has_double = False
-                tokens.append(';')
-                i += 1
+                if i + 1 < len(cmd_line) and cmd_line[i+1] == ';':
+                    tokens.append(';;')
+                    i += 2
+                else:
+                    tokens.append(';')
+                    i += 1
                 continue
                 
-            if char in ('{', '}'):
+            if char in ('{', '}', '(', ')'):
                 if current_token:
-                    prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
+                    token_has_dollar_single = False
                     token_has_double = False
                 tokens.append(char)
                 i += 1
@@ -176,20 +338,22 @@ class Tokenizer:
             if char == '|':
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '|':
                     if current_token:
-                        prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                        prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                         tokens.append(prefix + "".join(current_token))
                         current_token = []
                         token_has_single = False
+                        token_has_dollar_single = False
                         token_has_double = False
                     tokens.append('||')
                     i += 2
                     continue
                 else:
                     if current_token:
-                        prefix = QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else '')
+                        prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
                         tokens.append(prefix + "".join(current_token))
                         current_token = []
                         token_has_single = False
+                        token_has_dollar_single = False
                         token_has_double = False
                     tokens.append('|')
                     i += 1
@@ -203,7 +367,9 @@ class Tokenizer:
             
         if current_token:
             prefix = ''
-            if token_has_single:
+            if token_has_dollar_single:
+                prefix = QUOTE_DOLLAR_SINGLE
+            elif token_has_single:
                 prefix = QUOTE_SINGLE
             elif token_has_double:
                 prefix = QUOTE_DOUBLE

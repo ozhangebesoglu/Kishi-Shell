@@ -245,6 +245,13 @@ Kishi$ -> echo $MY_KEY
 ```
 Simply type `unset MY_KEY` to remove it. You can list all loaded variables in the environment by just typing `export`.
 
+### Customizing the Terminal Cursor
+You can customize the terminal cursor globally across all TUI interfaces (Dashboard, Explorer, etc.) by exporting the `CURSOR_SHAPE` variable. Add this to your `~/.kishirc`:
+```bash
+export CURSOR_SHAPE="BLINKING_BLOCK"
+```
+Available options: `BLOCK`, `BLINKING_BLOCK`, `UNDERLINE`, `BLINKING_UNDERLINE`, `BEAM`, `BLINKING_BEAM`.
+
 ### Create Your Own Commands (`myfunc`)
 If you keep repeating a task, you can instantly teach Kishi code blocks (Sub-Routines). Defining functions is very easy:
 

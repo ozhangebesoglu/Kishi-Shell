@@ -130,3 +130,22 @@ class TestQuoteExpansion:
         assert result == ["world"]
         del os.environ["KISHI_TEST_Q3"]
 
+
+class TestDollarSingleQuoteExpansion:
+    """Tests for $'...' tokens in the expander."""
+
+    def test_dollar_single_quoted_not_expanded(self):
+        """$'...' tokens should NOT be expanded — escape processing is done by lexer."""
+        from kishi.lexer import QUOTE_DOLLAR_SINGLE
+        os.environ["KISHI_TEST_DS"] = "expanded"
+        result = Expander.expand([QUOTE_DOLLAR_SINGLE + "$KISHI_TEST_DS"])
+        assert result == ["$KISHI_TEST_DS"]
+        del os.environ["KISHI_TEST_DS"]
+
+    def test_dollar_single_glob_not_expanded(self):
+        """$'...' tokens should NOT glob-expand."""
+        from kishi.lexer import QUOTE_DOLLAR_SINGLE
+        result = Expander.expand([QUOTE_DOLLAR_SINGLE + "*.txt"])
+        assert result == ["*.txt"]
+
+
