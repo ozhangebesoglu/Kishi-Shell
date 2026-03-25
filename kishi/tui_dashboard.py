@@ -674,6 +674,7 @@ class DashboardUI:
         combined_kb = merge_key_bindings([self.kb, self.explorer.kb])
 
         from kishi.state import get_cursor_shape
+        from prompt_toolkit.cursor_shapes import DynamicCursorShapeConfig
         self.app = Application(
             layout=self.layout,
             key_bindings=combined_kb,
@@ -681,7 +682,7 @@ class DashboardUI:
             full_screen=True,
             refresh_interval=2.5,
             mouse_support=True,
-            cursor=get_cursor_shape
+            cursor=DynamicCursorShapeConfig(get_cursor_shape)
         )
 
     def _get_header_text(self):

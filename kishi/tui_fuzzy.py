@@ -105,12 +105,13 @@ def run_fuzzy_history(history_lines):
     })
     
     from kishi.state import get_cursor_shape
+    from prompt_toolkit.cursor_shapes import DynamicCursorShapeConfig
     app = Application(
         layout=layout,
         key_bindings=kb,
         style=style,
         full_screen=True,
-        cursor=get_cursor_shape
+        cursor=DynamicCursorShapeConfig(get_cursor_shape)
     )
     
     return app.run_async()

@@ -191,6 +191,7 @@ def get_bottom_toolbar():
 def init_prompt_toolkit():
     history_file = os.path.join(os.environ.get("HOME", "/"), ".kishi_history")
     from kishi.state import get_cursor_shape
+    from prompt_toolkit.cursor_shapes import DynamicCursorShapeConfig
     
     return PromptSession(
         history=FileHistory(history_file),
@@ -201,5 +202,5 @@ def init_prompt_toolkit():
         key_bindings=kishi_bindings,
         bottom_toolbar=get_bottom_toolbar,
         complete_while_typing=True,
-        cursor=get_cursor_shape
+        cursor=DynamicCursorShapeConfig(get_cursor_shape)
     )

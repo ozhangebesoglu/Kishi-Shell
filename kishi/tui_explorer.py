@@ -331,13 +331,14 @@ class ExplorerUI:
 
         if self.standalone:
             from kishi.state import get_cursor_shape
+            from prompt_toolkit.cursor_shapes import DynamicCursorShapeConfig
             self.app = Application(
                 layout=self.layout,
                 key_bindings=kb,
                 style=style,
                 full_screen=True,
                 editing_mode=EditingMode.EMACS,
-                cursor=get_cursor_shape
+                cursor=DynamicCursorShapeConfig(get_cursor_shape)
             )
 
     def run(self):
