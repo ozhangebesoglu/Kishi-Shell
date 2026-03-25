@@ -201,5 +201,5 @@ def init_prompt_toolkit():
         key_bindings=kishi_bindings,
         bottom_toolbar=get_bottom_toolbar,
         complete_while_typing=True,
-        cursor=get_cursor_shape()
+        cursor=get_cursor_shape
     )

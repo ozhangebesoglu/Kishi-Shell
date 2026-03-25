@@ -330,14 +330,14 @@ class ExplorerUI:
         })
 
         if self.standalone:
-            from prompt_toolkit.cursor_shapes import CursorShape
+            from kishi.state import get_cursor_shape
             self.app = Application(
                 layout=self.layout,
                 key_bindings=kb,
                 style=style,
                 full_screen=True,
                 editing_mode=EditingMode.EMACS,
-                cursor=CursorShape.BLINKING_BEAM
+                cursor=get_cursor_shape
             )
 
     def run(self):
