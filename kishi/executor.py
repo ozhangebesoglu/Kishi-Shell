@@ -2,8 +2,9 @@ import os
 import sys
 import shlex
 import signal
+import contextlib
 
-from .state import COLOR_RED, COLOR_YELLOW, ALIASES, LOCAL_VARS, FUNCTIONS, BUILTINS
+from .state import COLOR_RED, COLOR_RESET, COLOR_YELLOW, ALIASES, LOCAL_VARS, FUNCTIONS, BUILTINS
 from .parser import SequenceNode, IfNode, WhileNode, ForNode, FunctionDefNode, LogicNode, PipelineNode, CaseNode, UntilNode, SelectNode
 from .expander import Expander
 from .job_control import JobManager
@@ -18,6 +19,49 @@ def get_close_match_suggestion(cmd_name):
         return f"\nDid you mean: {COLOR_CYAN}'{matches[0]}'{COLOR_RESET} ?"
     return ""
 
+def _run_redirected(callable_fn, call_args, cmd):
+    """Run a builtin/function applying stdout/stderr redirection via contextlib.
+
+    Pure-Python (no fd-level dup2) so behavior is identical on Linux and Windows.
+    Returns the callable's status. When no redirection is set, calls directly so
+    the existing non-redirected path is unchanged.
+    """
+    if not (cmd.out_file or cmd.err_file or cmd.err_to_out):
+        return callable_fn(call_args)
+
+    out_fh = None
+    err_fh = None
+    try:
+        out_ctx = contextlib.nullcontext()
+        err_ctx = contextlib.nullcontext()
+
+        if cmd.out_file:
+            try:
+                out_fh = open(cmd.out_file, "a" if cmd.out_append else "w", encoding="utf-8")
+            except OSError:
+                print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.out_file}.", file=sys.stderr)
+                return 1
+            out_ctx = contextlib.redirect_stdout(out_fh)
+
+        if cmd.err_to_out:
+            # 2>&1 — bind stderr to the (possibly redirected) stdout target
+            err_ctx = contextlib.redirect_stderr(out_fh if out_fh is not None else sys.stdout)
+        elif cmd.err_file:
+            try:
+                err_fh = open(cmd.err_file, "a" if cmd.err_append else "w", encoding="utf-8")
+            except OSError:
+                print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.err_file}.", file=sys.stderr)
+                return 1
+            err_ctx = contextlib.redirect_stderr(err_fh)
+
+        with out_ctx, err_ctx:
+            return callable_fn(call_args)
+    finally:
+        if out_fh is not None:
+            out_fh.close()
+        if err_fh is not None:
+            err_fh.close()
+
 def execute_pipeline(pipe_node):
     if not pipe_node.commands:
         return 0
@@ -31,6 +75,14 @@ def execute_pipeline(pipe_node):
             aliased_parts = shlex.split(ALIASES[cmd.args[0]])
             cmd.args = aliased_parts + cmd.args[1:]
         cmd.args = Expander.expand(cmd.args)
+        # Expand redirection targets too (tilde + $VAR; no globbing to avoid
+        # ambiguous multi-match). Applies to builtin, external, fork and Windows paths.
+        for _attr in ("in_file", "out_file", "err_file"):
+            _val = getattr(cmd, _attr)
+            if _val:
+                _exp = Expander.expand([_val], globbing=False)
+                if _exp:
+                    setattr(cmd, _attr, _exp[0])
         if cmd.args:
             valid_commands.append(cmd)
             
@@ -63,15 +115,15 @@ def execute_pipeline(pipe_node):
         if actual_cmd_idx < len(cmd.args):
             cmd_name = cmd.args[actual_cmd_idx]
             if cmd_name in BUILTINS:
-                return BUILTINS[cmd_name](cmd.args[actual_cmd_idx:])
+                return _run_redirected(BUILTINS[cmd_name], cmd.args[actual_cmd_idx:], cmd)
             elif cmd_name in FUNCTIONS:
                 args_passed = cmd.args[actual_cmd_idx:]
                 old_args = {str(i): LOCAL_VARS.get(str(i), None) for i in range(1, len(args_passed))}
                 for i in range(1, len(args_passed)):
                     LOCAL_VARS[str(i)] = args_passed[i]
-                    
-                status = execute_ast(FUNCTIONS[cmd_name])
-                
+
+                status = _run_redirected(lambda _a: execute_ast(FUNCTIONS[cmd_name]), args_passed, cmd)
+
                 for k, v in old_args.items():
                     if v is None:
                         if k in LOCAL_VARS: del LOCAL_VARS[k]
@@ -422,7 +474,8 @@ def process_command_line(cmd_line):
     from .parser import Parser
     tokens = Tokenizer.wrap_tokenize(cmd_line)
     if not tokens:
-        return
+        return 0
     ast = Parser.parse(tokens)
     if ast:
-        execute_ast(ast)
+        return execute_ast(ast)
+    return 0

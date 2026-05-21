@@ -43,7 +43,10 @@ class Expander:
             arg = re.sub(r'\$\(([^)]+)\)|`([^`]+)`', cmd_replacer, arg)
 
             # 2. Variable Expansion (unquoted and double-quoted)
-            if arg.startswith('$'):
+            # Only a token that is *exactly* a single variable ($VAR) takes the
+            # drop-if-empty path. "$VAR/suffix" / "$VAR.txt" fall through to the
+            # regex replacer so the non-variable suffix is preserved.
+            if re.fullmatch(r'\$[A-Za-z0-9_]+', arg):
                 var_name = arg[1:]
                 val = LOCAL_VARS.get(var_name, os.environ.get(var_name, ALIASES.get(var_name, "")))
                 if val: expanded_args.append(val)

@@ -38,8 +38,15 @@ def kishi_pwd(args):
     return 0
 
 def kishi_exit(args):
-    print(f"\n{COLOR_AMBER}Kishi:{COLOR_RESET} Exiting safely. Goodbye!")
-    sys.exit(0)
+    code = 0
+    if len(args) > 1:
+        try:
+            code = int(args[1])
+        except ValueError:
+            code = 1
+    # Goodbye message goes to stderr so 'exit > file' does not pollute stdout.
+    print(f"\n{COLOR_AMBER}Kishi:{COLOR_RESET} Exiting safely. Goodbye!", file=sys.stderr)
+    sys.exit(code)
 
 def kishi_clear(args):
     clear()
