@@ -124,6 +124,18 @@ class Tokenizer:
         return ''.join(result)
 
     @staticmethod
+    def _quote_prefix(has_dollar_single, has_single, has_double):
+        """Pick the sentinel prefix for a token. When a token mixes single and
+        double quotes, double wins so the $VAR part still expands."""
+        if has_dollar_single:
+            return QUOTE_DOLLAR_SINGLE
+        if has_double:
+            return QUOTE_DOUBLE
+        if has_single:
+            return QUOTE_SINGLE
+        return ''
+
+    @staticmethod
     def tokenize(cmd_line):
         """Splits text into tokens (arguments and operators). Preserves quoted strings. '&' and '|' inside arguments are not treated as operators."""
         
@@ -136,7 +148,9 @@ class Tokenizer:
         token_has_single = False
         token_has_dollar_single = False
         token_has_double = False
-        
+        # Set when '&>' is seen; a trailing '2>&1' is appended at the end.
+        ampersand_redirect = False
+
         i = 0
         while i < len(cmd_line):
             char = cmd_line[i]
@@ -208,13 +222,7 @@ class Tokenizer:
             # Whitespace ends the current token
             if char.isspace():
                 if current_token:
-                    prefix = ''
-                    if token_has_dollar_single:
-                        prefix = QUOTE_DOLLAR_SINGLE
-                    elif token_has_single:
-                        prefix = QUOTE_SINGLE
-                    elif token_has_double:
-                        prefix = QUOTE_DOUBLE
+                    prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
@@ -223,11 +231,39 @@ class Tokenizer:
                 i += 1
                 continue
                 
+            # Comment: '#' at a word boundary starts a comment until end of line.
+            # '#' inside a word (current_token non-empty) stays literal.
+            if char == '#' and not current_token:
+                break
+
+            # &> — redirect both stdout and stderr. Emit '>' here; a trailing
+            # '2>&1' is appended after tokenizing so the parser wires up err->out.
+            if char == '&' and i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
+                tokens.append('>')
+                ampersand_redirect = True
+                i += 2
+                continue
+
+            # Numbered fd redirect: '1>' / '1>>' map to stdout '>' / '>>'.
+            if char == '1' and i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
+                if current_token:
+                    prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
+                    tokens.append(prefix + "".join(current_token))
+                    current_token = []
+                    token_has_single = token_has_dollar_single = token_has_double = False
+                if i + 2 < len(cmd_line) and cmd_line[i+2] == '>':
+                    tokens.append('>>')
+                    i += 3
+                else:
+                    tokens.append('>')
+                    i += 2
+                continue
+
             # Fixed operator handling (<, >, >>, 2>, 2>>, 2>&1)
             # Check if current char is '2' followed by '>'
             if char == '2' and i + 1 < len(cmd_line) and cmd_line[i+1] == '>':
                 if current_token:
-                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                    prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
@@ -248,7 +284,7 @@ class Tokenizer:
             
             if char == '<':
                 if current_token:
-                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                    prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
@@ -260,7 +296,7 @@ class Tokenizer:
                 
             if char == '>':
                 if current_token:
-                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                    prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
@@ -278,7 +314,7 @@ class Tokenizer:
             if char == '&':
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '&':
                     if current_token:
-                        prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                        prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                         tokens.append(prefix + "".join(current_token))
                         current_token = []
                         token_has_single = False
@@ -293,7 +329,7 @@ class Tokenizer:
                     
                     if prev_is_space or next_is_space:
                         if current_token:
-                            prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                            prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                             tokens.append(prefix + "".join(current_token))
                             current_token = []
                             token_has_single = False
@@ -309,7 +345,7 @@ class Tokenizer:
 
             if char == ';':
                 if current_token:
-                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                    prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
@@ -325,7 +361,7 @@ class Tokenizer:
                 
             if char in ('{', '}', '(', ')'):
                 if current_token:
-                    prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                    prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                     tokens.append(prefix + "".join(current_token))
                     current_token = []
                     token_has_single = False
@@ -338,7 +374,7 @@ class Tokenizer:
             if char == '|':
                 if i + 1 < len(cmd_line) and cmd_line[i+1] == '|':
                     if current_token:
-                        prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                        prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                         tokens.append(prefix + "".join(current_token))
                         current_token = []
                         token_has_single = False
@@ -349,7 +385,7 @@ class Tokenizer:
                     continue
                 else:
                     if current_token:
-                        prefix = QUOTE_DOLLAR_SINGLE if token_has_dollar_single else (QUOTE_SINGLE if token_has_single else (QUOTE_DOUBLE if token_has_double else ''))
+                        prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
                         tokens.append(prefix + "".join(current_token))
                         current_token = []
                         token_has_single = False
@@ -366,15 +402,12 @@ class Tokenizer:
             raise ValueError("Unclosed quotation mark")
             
         if current_token:
-            prefix = ''
-            if token_has_dollar_single:
-                prefix = QUOTE_DOLLAR_SINGLE
-            elif token_has_single:
-                prefix = QUOTE_SINGLE
-            elif token_has_double:
-                prefix = QUOTE_DOUBLE
+            prefix = Tokenizer._quote_prefix(token_has_dollar_single, token_has_single, token_has_double)
             tokens.append(prefix + "".join(current_token))
-            
+
+        if ampersand_redirect:
+            tokens.append('2>&1')
+
         return tokens
 
     @staticmethod
