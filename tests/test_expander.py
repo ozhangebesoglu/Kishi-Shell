@@ -168,3 +168,52 @@ class TestDollarSingleQuoteExpansion:
         assert result == ["*.txt"]
 
 
+class TestBraceExpansion:
+    """Bug #6: ${VAR} brace-style variable expansion."""
+
+    def test_brace_variable(self):
+        os.environ["KISHI_BR"] = "braced"
+        assert Expander.expand(["${KISHI_BR}"]) == ["braced"]
+        del os.environ["KISHI_BR"]
+
+    def test_brace_variable_inline(self):
+        os.environ["KISHI_BR2"] = "X"
+        assert Expander.expand(["a${KISHI_BR2}b"]) == ["aXb"]
+        del os.environ["KISHI_BR2"]
+
+    def test_brace_variable_with_suffix(self):
+        os.environ["KISHI_BR3"] = "/tmp"
+        assert Expander.expand(["${KISHI_BR3}/file"]) == ["/tmp/file"]
+        del os.environ["KISHI_BR3"]
+
+    def test_brace_undefined_dropped_when_unquoted(self):
+        assert Expander.expand(["${NOPE_BRACE_XYZ}"]) == []
+
+
+class TestNestedCommandSubstitution:
+    """Bug #7: $(...) with balanced/nested parentheses."""
+
+    def test_nested_command_substitution(self):
+        assert Expander.expand(["$(echo $(echo deep))"]) == ["deep"]
+
+    def test_command_substitution_with_inner_parens(self):
+        # The whole balanced group is handed to the shell intact.
+        assert Expander.expand(["$(echo hi)"]) == ["hi"]
+
+
+class TestDoubleQuotedEmptyVar:
+    """Bug #9: double-quoted undefined var yields '' (not dropped)."""
+
+    def test_double_quoted_undefined_yields_empty_string(self):
+        from kishi.lexer import QUOTE_DOUBLE
+        assert Expander.expand([QUOTE_DOUBLE + "$UNDEFINED_DQ_XYZ"]) == [""]
+
+    def test_double_quoted_brace_undefined_yields_empty_string(self):
+        from kishi.lexer import QUOTE_DOUBLE
+        assert Expander.expand([QUOTE_DOUBLE + "${UNDEFINED_DQ_XYZ}"]) == [""]
+
+    def test_unquoted_undefined_still_dropped(self):
+        # Regression: unquoted undefined var is still removed (word removal).
+        assert Expander.expand(["$UNDEFINED_DQ_XYZ"]) == []
+
+
