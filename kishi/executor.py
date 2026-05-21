@@ -19,6 +19,25 @@ def get_close_match_suggestion(cmd_name):
         return f"\nDid you mean: {COLOR_CYAN}'{matches[0]}'{COLOR_RESET} ?"
     return ""
 
+@contextlib.contextmanager
+def _temp_env(assignments):
+    """Apply VAR=value assignments to os.environ for the duration of the block,
+    then restore prior values. Used for `FOO=bar builtin` prefixes, which run
+    in the parent process (unlike forked externals)."""
+    if not assignments:
+        yield
+        return
+    saved = {k: os.environ.get(k) for k in assignments}
+    os.environ.update(assignments)
+    try:
+        yield
+    finally:
+        for k, old in saved.items():
+            if old is None:
+                os.environ.pop(k, None)
+            else:
+                os.environ[k] = old
+
 def _run_redirected(callable_fn, call_args, cmd):
     """Run a builtin/function applying stdout/stderr redirection via contextlib.
 
@@ -114,15 +133,24 @@ def execute_pipeline(pipe_node):
                 
         if actual_cmd_idx < len(cmd.args):
             cmd_name = cmd.args[actual_cmd_idx]
+            # VAR=value tokens before the command name are a temporary env
+            # prefix (e.g. `FOO=bar pwd`); applied only while the builtin runs.
+            env_prefix = {}
+            for a in cmd.args[:actual_cmd_idx]:
+                if '=' in a and not a.startswith('-'):
+                    k, v = a.split('=', 1)
+                    env_prefix[k] = v
             if cmd_name in BUILTINS:
-                return _run_redirected(BUILTINS[cmd_name], cmd.args[actual_cmd_idx:], cmd)
+                with _temp_env(env_prefix):
+                    return _run_redirected(BUILTINS[cmd_name], cmd.args[actual_cmd_idx:], cmd)
             elif cmd_name in FUNCTIONS:
                 args_passed = cmd.args[actual_cmd_idx:]
                 old_args = {str(i): LOCAL_VARS.get(str(i), None) for i in range(1, len(args_passed))}
                 for i in range(1, len(args_passed)):
                     LOCAL_VARS[str(i)] = args_passed[i]
 
-                status = _run_redirected(lambda _a: execute_ast(FUNCTIONS[cmd_name]), args_passed, cmd)
+                with _temp_env(env_prefix):
+                    status = _run_redirected(lambda _a: execute_ast(FUNCTIONS[cmd_name]), args_passed, cmd)
 
                 for k, v in old_args.items():
                     if v is None:
