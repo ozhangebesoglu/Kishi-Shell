@@ -206,9 +206,10 @@ def _main_inner():
 
     # --- 6. -c modu: komutu çalıştır ve çık ---
     if len(args) >= 2 and args[0] == "-c":
+        # Like 'bash -c', do NOT run .kishirc command lines here; only the
+        # aliases/exports parsed by load_rc_file apply. startup_cmds are
+        # interactive-only to avoid polluting scripted stdout.
         cmd = args[1]
-        for sc in startup_cmds:
-            process_command_line(sc)
         result = process_command_line(cmd)
         sys.exit(result or 0)
 
@@ -218,16 +219,17 @@ def _main_inner():
 
     # --- 8. Non-interactive mod: stdin'den satır satır oku ---
     if not is_interactive:
-        for sc in startup_cmds:
-            process_command_line(sc)
+        # Non-interactive (piped/scripted) input does not source .kishirc
+        # command lines, matching bash behavior. Aliases/exports already applied.
+        last_status = 0
         try:
             for line in sys.stdin:
                 line = line.strip()
                 if line:
-                    process_command_line(line)
+                    last_status = process_command_line(line) or 0
         except (EOFError, KeyboardInterrupt):
             pass
-        sys.exit(0)
+        sys.exit(last_status)
 
     # --- 9. Interactive mod ---
     state.IS_INTERACTIVE = True

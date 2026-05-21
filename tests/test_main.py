@@ -5,11 +5,14 @@ Tests focus on RC file loading, plugin loading, and profile sourcing logic.
 import os
 import re
 import sys
+import subprocess
 import pytest
 from unittest.mock import patch
 
 from kishi import state
 from kishi.main import load_rc_file, load_plugins, _source_profile
+
+PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 
 # ---------------------------------------------------------------------------
@@ -275,3 +278,35 @@ class TestSourceProfile:
 
         _source_profile(str(profile))
         assert os.environ["KISHI_PROFILE_VAR"] == "single"
+
+
+# ---------------------------------------------------------------------------
+# Non-interactive modes must NOT run .kishirc command lines (bash -c parity)
+# ---------------------------------------------------------------------------
+
+class TestNonInteractiveRcPollution:
+    def _run(self, argv, home, stdin=None):
+        env = dict(os.environ, HOME=str(home))
+        return subprocess.run(
+            [sys.executable, "-m", "kishi"] + argv,
+            cwd=PROJECT_ROOT, env=env, input=stdin,
+            capture_output=True, text=True, timeout=30,
+        )
+
+    def test_dash_c_does_not_run_rc_startup_commands(self, tmp_path):
+        """kishi -c must not execute command lines from .kishirc on stdout."""
+        (tmp_path / ".kishirc").write_text("echo RC_MARKER_SHOULD_NOT_APPEAR\n")
+        result = self._run(["-c", "true"], tmp_path)
+        assert "RC_MARKER_SHOULD_NOT_APPEAR" not in result.stdout
+
+    def test_pipe_mode_does_not_run_rc_startup_commands(self, tmp_path):
+        """echo cmd | kishi must not execute .kishirc command lines."""
+        (tmp_path / ".kishirc").write_text("echo RC_MARKER_PIPE\n")
+        result = self._run([], tmp_path, stdin="true\n")
+        assert "RC_MARKER_PIPE" not in result.stdout
+
+    def test_dash_c_still_loads_aliases_from_rc(self, tmp_path):
+        """Aliases (not command lines) from .kishirc must still apply in -c mode."""
+        (tmp_path / ".kishirc").write_text("alias greet='echo HELLO_FROM_ALIAS'\n")
+        result = self._run(["-c", "greet"], tmp_path)
+        assert "HELLO_FROM_ALIAS" in result.stdout

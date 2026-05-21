@@ -59,6 +59,23 @@ def _make_sequence(*nodes):
     return seq
 
 
+def _make_redirect_pipeline(args, out_file=None, out_append=False,
+                            err_file=None, err_append=False,
+                            in_file=None, err_to_out=False):
+    """Helper: single-command PipelineNode carrying redirection fields."""
+    pipe = PipelineNode()
+    cmd = CommandNode()
+    cmd.args = list(args)
+    cmd.out_file = out_file
+    cmd.out_append = out_append
+    cmd.err_file = err_file
+    cmd.err_append = err_append
+    cmd.in_file = in_file
+    cmd.err_to_out = err_to_out
+    pipe.commands.append(cmd)
+    return pipe
+
+
 # ---------------------------------------------------------------------------
 # Variable Assignment (VAR=value)
 # ---------------------------------------------------------------------------
@@ -671,3 +688,161 @@ class TestGetCloseMatchSuggestion:
         state.SYSTEM_COMMANDS = []
         result = get_close_match_suggestion("anything")
         assert result == ""
+
+
+# ---------------------------------------------------------------------------
+# Bug #3: Builtin / function output redirection (single-command path)
+# ---------------------------------------------------------------------------
+
+class TestBuiltinRedirection:
+    def test_builtin_stdout_redirected_to_file(self, tmp_path):
+        """A builtin's stdout should be written to out_file, not the terminal."""
+        f = tmp_path / "out.txt"
+
+        def printer(args):
+            print("REDIRECTED_OUTPUT")
+            return 0
+
+        state.BUILTINS["_printer"] = printer
+        pipe = _make_redirect_pipeline(["_printer"], out_file=str(f))
+        rc = execute_pipeline(pipe)
+
+        assert rc == 0
+        assert f.read_text() == "REDIRECTED_OUTPUT\n"
+
+    def test_builtin_stdout_not_on_terminal(self, tmp_path, capsys):
+        """When redirected, nothing should reach the real stdout."""
+        f = tmp_path / "out.txt"
+
+        def printer(args):
+            print("SHOULD_BE_IN_FILE")
+            return 0
+
+        state.BUILTINS["_printer2"] = printer
+        execute_pipeline(_make_redirect_pipeline(["_printer2"], out_file=str(f)))
+
+        captured = capsys.readouterr()
+        assert "SHOULD_BE_IN_FILE" not in captured.out
+
+    def test_builtin_stdout_append(self, tmp_path):
+        """out_append should append, not truncate."""
+        f = tmp_path / "a.txt"
+        f.write_text("EXISTING\n")
+
+        def printer(args):
+            print("APPENDED")
+            return 0
+
+        state.BUILTINS["_ap"] = printer
+        execute_pipeline(_make_redirect_pipeline(["_ap"], out_file=str(f), out_append=True))
+
+        assert f.read_text() == "EXISTING\nAPPENDED\n"
+
+    def test_builtin_stderr_redirected(self, tmp_path):
+        """A builtin's stderr should be written to err_file."""
+        import sys as _sys
+        f = tmp_path / "e.txt"
+
+        def errprinter(args):
+            print("ERRMSG", file=_sys.stderr)
+            return 0
+
+        state.BUILTINS["_err"] = errprinter
+        execute_pipeline(_make_redirect_pipeline(["_err"], err_file=str(f)))
+
+        assert f.read_text() == "ERRMSG\n"
+
+    def test_function_output_redirected(self, tmp_path):
+        """A user function's output should honor redirection."""
+        f = tmp_path / "fn.txt"
+
+        def body_builtin(args):
+            print("FROM_FUNC")
+            return 0
+
+        state.BUILTINS["_fnbody"] = body_builtin
+        state.FUNCTIONS["myfn"] = _make_sequence(_make_pipeline(["_fnbody"]))
+        execute_pipeline(_make_redirect_pipeline(["myfn"], out_file=str(f)))
+
+        assert f.read_text() == "FROM_FUNC\n"
+
+    def test_builtin_without_redirect_still_returns_status(self):
+        """Regression: redirect-less builtin still called directly with its status."""
+        state.BUILTINS["_plain"] = lambda args: 7
+        rc = execute_pipeline(_make_redirect_pipeline(["_plain"]))
+        assert rc == 7
+
+
+# ---------------------------------------------------------------------------
+# Bug #4: Redirect target expansion ($VAR, ~)
+# ---------------------------------------------------------------------------
+
+class TestRedirectTargetExpansion:
+    def test_redirect_target_expands_variable(self, tmp_path, monkeypatch):
+        """out_file '$VAR' should expand to the real path before opening."""
+        target = tmp_path / "exp.txt"
+        monkeypatch.setenv("KISHI_RT", str(target))
+
+        def printer(args):
+            print("VAREXP")
+            return 0
+
+        state.BUILTINS["_rt"] = printer
+        execute_pipeline(_make_redirect_pipeline(["_rt"], out_file="$KISHI_RT"))
+
+        assert target.read_text() == "VAREXP\n"
+
+    def test_redirect_target_expands_tilde(self, tmp_path, monkeypatch):
+        """out_file '~/x' should expand via HOME."""
+        monkeypatch.setenv("HOME", str(tmp_path))
+
+        def printer(args):
+            print("TILDE")
+            return 0
+
+        state.BUILTINS["_tl"] = printer
+        execute_pipeline(_make_redirect_pipeline(["_tl"], out_file="~/tl.txt"))
+
+        assert (tmp_path / "tl.txt").read_text() == "TILDE\n"
+
+
+# ---------------------------------------------------------------------------
+# Bug #1: process_command_line should return the command's exit status
+# ---------------------------------------------------------------------------
+
+class TestProcessCommandLineExitCode:
+    def test_returns_status_of_command(self):
+        state.BUILTINS["_rc3"] = lambda args: 3
+        assert process_command_line("_rc3") == 3
+
+    def test_returns_zero_for_success(self):
+        state.BUILTINS["_rc0"] = lambda args: 0
+        assert process_command_line("_rc0") == 0
+
+    def test_empty_input_returns_zero(self):
+        assert process_command_line("") == 0
+        assert process_command_line("   ") == 0
+
+
+# ---------------------------------------------------------------------------
+# Bug #2: exit builtin should honor a numeric exit code argument
+# ---------------------------------------------------------------------------
+
+class TestExitBuiltin:
+    def test_exit_with_code(self):
+        from kishi.builtins import kishi_exit
+        with pytest.raises(SystemExit) as exc:
+            kishi_exit(["exit", "5"])
+        assert exc.value.code == 5
+
+    def test_exit_no_arg_is_zero(self):
+        from kishi.builtins import kishi_exit
+        with pytest.raises(SystemExit) as exc:
+            kishi_exit(["exit"])
+        assert exc.value.code == 0
+
+    def test_exit_invalid_arg_is_one(self):
+        from kishi.builtins import kishi_exit
+        with pytest.raises(SystemExit) as exc:
+            kishi_exit(["exit", "abc"])
+        assert exc.value.code == 1

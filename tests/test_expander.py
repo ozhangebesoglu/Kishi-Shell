@@ -41,6 +41,25 @@ class TestVariableExpansion:
         del state.LOCAL_VARS["pvar"]
         del os.environ["pvar"]
 
+    def test_variable_with_path_suffix(self):
+        """$VAR/sub/file should expand the $VAR portion, keep the suffix."""
+        os.environ["KISHI_DIR"] = "/tmp"
+        result = Expander.expand(["$KISHI_DIR/sub/file.txt"])
+        assert result == ["/tmp/sub/file.txt"]
+        del os.environ["KISHI_DIR"]
+
+    def test_variable_with_extension_suffix(self):
+        """$VAR.txt should expand $VAR and keep '.txt'."""
+        os.environ["KISHI_BASE"] = "report"
+        result = Expander.expand(["$KISHI_BASE.txt"])
+        assert result == ["report.txt"]
+        del os.environ["KISHI_BASE"]
+
+    def test_bare_undefined_variable_still_dropped(self):
+        """Regression: a bare undefined $VAR is still dropped (word removal)."""
+        result = Expander.expand(["$NOPE_UNDEFINED_XYZ"])
+        assert result == []
+
 
 class TestTildeExpansion:
     def test_tilde(self):
