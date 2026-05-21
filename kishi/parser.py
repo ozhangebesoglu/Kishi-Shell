@@ -110,7 +110,10 @@ class Parser:
                     push_statement()
                     continue
                     
-                if token == 'if':
+                # Reserved words are keywords only in command position
+                # (statement start). Mid-statement they are plain arguments,
+                # e.g. `grep if file`.
+                if token == 'if' and not current_statement_tokens:
                     push_statement()
                     stream.consume() # consume 'if'
                     
@@ -147,7 +150,7 @@ class Parser:
                     seq.statements.append(IfNode(cond_ast, then_ast, elif_asts, else_ast))
                     continue
 
-                if token == 'while':
+                if token == 'while' and not current_statement_tokens:
                     push_statement()
                     stream.consume()
                     
@@ -166,7 +169,7 @@ class Parser:
                     seq.statements.append(WhileNode(cond_ast, body_ast))
                     continue
 
-                if token == 'for':
+                if token == 'for' and not current_statement_tokens:
                     push_statement()
                     stream.consume()
                     
@@ -187,7 +190,7 @@ class Parser:
                     seq.statements.append(ForNode(var_name, iter_items, body_ast))
                     continue
 
-                if token == 'until':
+                if token == 'until' and not current_statement_tokens:
                     push_statement()
                     stream.consume()
                     
@@ -206,7 +209,7 @@ class Parser:
                     seq.statements.append(UntilNode(cond_ast, body_ast))
                     continue
 
-                if token == 'case':
+                if token == 'case' and not current_statement_tokens:
                     push_statement()
                     stream.consume()  # consume 'case'
                     
@@ -240,7 +243,7 @@ class Parser:
                     seq.statements.append(CaseNode(word, cases, default_ast))
                     continue
 
-                if token == 'select':
+                if token == 'select' and not current_statement_tokens:
                     push_statement()
                     stream.consume()
                     

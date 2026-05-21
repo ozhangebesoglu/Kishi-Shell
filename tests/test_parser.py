@@ -160,3 +160,33 @@ class TestFunctionDef:
         node = ast.statements[0]
         assert isinstance(node, FunctionDefNode)
         assert node.func_name == "greet"
+
+
+class TestKeywordAsArgument:
+    """Bug #5: reserved words are only keywords in command position."""
+
+    def test_keyword_as_command_argument(self):
+        """grep if file — 'if' is an argument, not an IfNode."""
+        ast = parse("grep if file")
+        assert len(ast.statements) == 1
+        pipe = ast.statements[0]
+        assert isinstance(pipe, PipelineNode)
+        assert pipe.commands[0].args == ["grep", "if", "file"]
+
+    def test_multiple_keyword_arguments(self):
+        ast = parse("echo for while do done case")
+        pipe = ast.statements[0]
+        assert isinstance(pipe, PipelineNode)
+        assert pipe.commands[0].args == ["echo", "for", "while", "do", "done", "case"]
+
+    def test_real_if_still_parses(self):
+        """Regression: a leading 'if' is still an IfNode."""
+        ast = parse("if test -f foo then echo yes fi")
+        assert isinstance(ast.statements[0], IfNode)
+
+    def test_keyword_after_semicolon_still_parses(self):
+        """Regression: 'if' in command position after ';' is still an IfNode."""
+        ast = parse("ls ; if test -f foo then echo yes fi")
+        assert len(ast.statements) == 2
+        assert isinstance(ast.statements[0], PipelineNode)
+        assert isinstance(ast.statements[1], IfNode)
