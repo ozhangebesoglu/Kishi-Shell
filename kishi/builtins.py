@@ -528,6 +528,8 @@ def kishi_setup(args):
         print(f"{COLOR_RED}Error writing settings:{COLOR_RESET} {e}")
         return 1
 
+    print(f"{COLOR_GREEN}[OK]{COLOR_RESET} Kishi Shell profile added to Windows Terminal.")
+    if not set_default:
         print(f"     To set as default: setup --default")
     print(f"     Restart Windows Terminal to see the changes.")
     return 0

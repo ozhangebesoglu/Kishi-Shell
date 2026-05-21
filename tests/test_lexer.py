@@ -176,3 +176,47 @@ class TestDollarSingleQuote:
         # The $USER stays literal in the token (escape processing doesn't touch $)
         assert result == ["echo", QUOTE_DOLLAR_SINGLE + "$USER"]
 
+
+class TestComments:
+    """Bug #10: '#' starts a comment in unquoted regions."""
+
+    def test_trailing_comment_stripped(self):
+        assert Tokenizer.tokenize("echo hello # a comment") == ["echo", "hello"]
+
+    def test_whole_line_comment(self):
+        assert Tokenizer.tokenize("# just a comment") == []
+
+    def test_hash_inside_word_is_literal(self):
+        """A '#' not at a word boundary stays part of the token."""
+        assert Tokenizer.tokenize("echo abc#def") == ["echo", "abc#def"]
+
+    def test_hash_in_single_quotes_is_literal(self):
+        assert Tokenizer.tokenize("echo '# not a comment'") == ["echo", QUOTE_SINGLE + "# not a comment"]
+
+    def test_hash_in_double_quotes_is_literal(self):
+        assert Tokenizer.tokenize('echo "# not a comment"') == ["echo", QUOTE_DOUBLE + "# not a comment"]
+
+
+class TestFdRedirectOperators:
+    """Bug #11: numbered fd redirects (1>, &>)."""
+
+    def test_explicit_stdout_redirect(self):
+        assert Tokenizer.tokenize("echo hi 1> out.txt") == ["echo", "hi", ">", "out.txt"]
+
+    def test_explicit_stdout_append(self):
+        assert Tokenizer.tokenize("echo hi 1>> out.txt") == ["echo", "hi", ">>", "out.txt"]
+
+    def test_ampersand_redirect_both(self):
+        """&> redirects both stdout and stderr (tokenized as 2>&1 + >)."""
+        assert Tokenizer.tokenize("cmd &> all.txt") == ["cmd", ">", "all.txt", "2>&1"]
+
+
+class TestMixedQuotesOneToken:
+    """Bug #8: 'literal'"$VAR" — double-quoted part must still expand."""
+
+    def test_single_then_double_quote(self):
+        """A token mixing single+double quotes carries the double sentinel
+        so the $VAR portion is expanded by the expander."""
+        result = Tokenizer.tokenize("echo 'lit'\"$V\"")
+        assert result == ["echo", QUOTE_DOUBLE + "lit$V"]
+

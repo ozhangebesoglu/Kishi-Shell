@@ -846,3 +846,38 @@ class TestExitBuiltin:
         with pytest.raises(SystemExit) as exc:
             kishi_exit(["exit", "abc"])
         assert exc.value.code == 1
+
+
+# ---------------------------------------------------------------------------
+# Bug #12: VAR=value prefix on a builtin (FOO=bar pwd)
+# ---------------------------------------------------------------------------
+
+class TestEnvPrefixOnBuiltin:
+    def test_env_prefix_visible_to_builtin(self):
+        """FOO=bar builtin — the builtin sees FOO in os.environ."""
+        seen = {}
+
+        def probe(args):
+            seen["v"] = os.environ.get("KISHI_EP_V")
+            return 0
+
+        state.BUILTINS["_ep_probe"] = probe
+        execute_pipeline(_make_pipeline(["KISHI_EP_V=hello", "_ep_probe"]))
+        assert seen["v"] == "hello"
+
+    def test_env_prefix_removed_after_builtin(self):
+        """A prefix var that did not exist before is gone afterwards."""
+        os.environ.pop("KISHI_EP_R", None)
+        state.BUILTINS["_ep_noop"] = lambda a: 0
+        execute_pipeline(_make_pipeline(["KISHI_EP_R=x", "_ep_noop"]))
+        assert "KISHI_EP_R" not in os.environ
+
+    def test_env_prefix_restores_previous_value(self):
+        """A prefix var with a prior value is restored afterwards."""
+        os.environ["KISHI_EP_O"] = "original"
+        try:
+            state.BUILTINS["_ep_noop2"] = lambda a: 0
+            execute_pipeline(_make_pipeline(["KISHI_EP_O=temp", "_ep_noop2"]))
+            assert os.environ["KISHI_EP_O"] == "original"
+        finally:
+            os.environ.pop("KISHI_EP_O", None)
