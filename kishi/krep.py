@@ -25,11 +25,16 @@ def _build_rg_pattern(query):
 
     Returns: pattern string veya None (sorguda işe yarar kelime yoksa).
     """
-    tokens = query.split()
-    long_tokens = [t for t in tokens if len(re.sub(r'\W', '', t)) >= 3]
-    if not long_tokens:
+    # re.findall(r'[\w]+') Unicode-aware kelime tokenization yapar:
+    # "config.py error" → ["config", "py", "error"]
+    # "güvenlik şifre"  → ["güvenlik", "şifre"]
+    # Bu Krep'in semantic OR-tabanlı prefilter karakteristiğine uygundur;
+    # tek harf/iki harf (a, to, if) kelimeler 3-karakter filtresiyle elenir.
+    words = re.findall(r'[\w]+', query)
+    long_words = [w for w in words if len(w) >= 3]
+    if not long_words:
         return None
-    return "|".join(re.escape(t) for t in long_tokens)
+    return "|".join(re.escape(w) for w in long_words)
 
 # Kavramsal ANSI Renk Kodları
 COLOR_RESET = "\033[0m"

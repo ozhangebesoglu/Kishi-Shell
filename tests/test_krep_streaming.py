@@ -39,13 +39,36 @@ class TestBuildRgPattern:
         assert "|to|" not in pattern
         assert pattern.count("|") == 0 or pattern == "database"
 
-    def test_regex_metacharacters_escaped(self):
-        """Sorgudaki regex meta-karakterleri escape edilmeli."""
+    def test_regex_metacharacters_safe(self):
+        """Pattern her zaman güvenli regex olmalı; meta-karakterler ya drop
+        edilir (findall \\w+ ile) ya da re.escape ile escape edilir."""
+        import re as _re
         from kishi.krep import _build_rg_pattern
         pattern = _build_rg_pattern("foo.bar baz+qux")
-        # Nokta ve artı escape edilmiş olmalı
-        assert "foo\\." in pattern or "foo\\.bar" in pattern
-        assert "baz\\+" in pattern or "baz\\+qux" in pattern
+        assert pattern is not None
+        # Pattern legitimate regex olmalı (compile patlamasın)
+        _re.compile(pattern)
+        # Token parçaları görünmeli (findall \\w+ kelimeleri ayrıştırır)
+        assert "foo" in pattern
+        assert "bar" in pattern
+        assert "baz" in pattern
+        assert "qux" in pattern
+        # Bare metachar pattern'i bozmamalı: '.' veya '+' regex'i breakeder
+        # findall drop ettiği için literal görünmemeli
+        assert "." not in pattern  # nokta drop edildi (yoksa escape görünürdü)
+        assert "+" not in pattern  # artı drop edildi
+
+    def test_escape_safety_with_pre_escaped_chars(self):
+        """\\w+ regex meta-karakterleri zaten drop ediyor ama escape() de güvende
+        olduğumuzu doğrular: '_' gibi \\w'ye dahil ama re.escape'te değişmeyen
+        karakterler bozulmamalı."""
+        import re as _re
+        from kishi.krep import _build_rg_pattern
+        pattern = _build_rg_pattern("user_name auth_token")
+        assert pattern is not None
+        _re.compile(pattern)  # compile etmeli
+        assert "user_name" in pattern
+        assert "auth_token" in pattern
 
     def test_empty_query(self):
         from kishi.krep import _build_rg_pattern
