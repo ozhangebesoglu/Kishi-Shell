@@ -202,3 +202,75 @@ class TestStreamingSearch:
             assert isinstance(output_str, str)
             # Renkli output beklenir
             assert "\033[" in output_str
+
+
+class TestKrepSearchDispatch:
+    @pytest.fixture
+    def small_corpus(self, tmp_path):
+        (tmp_path / "errors.log").write_text(
+            "database connection error\n"
+            "user login successful\n"
+            "system timeout occurred\n"
+        )
+        return str(tmp_path)
+
+    def test_dispatch_uses_rg_when_available(self, small_corpus, capsys):
+        """rg varsa, krep_search rg-streaming yolundan geçmeli."""
+        from kishi.krep import krep_search, _HAS_RG
+        if not _HAS_RG:
+            pytest.skip("rg not installed")
+        rc = krep_search("database error", [small_corpus], limit=5)
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert "database connection error" in captured.out
+
+    def test_dispatch_falls_back_when_rg_disabled(self, small_corpus,
+                                                  capsys, monkeypatch):
+        """_HAS_RG=False olduğunda fallback yolu çalışmalı."""
+        import kishi.krep as krep_mod
+        monkeypatch.setattr(krep_mod, "_HAS_RG", False)
+
+        rc = krep_mod.krep_search("database error", [small_corpus], limit=5)
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert "database connection error" in captured.out
+
+    def test_dispatch_stdin_skips_rg(self, monkeypatch, capsys):
+        """Stdin modu rg'yi bypass etmeli (rg dosya argümanı bekler)."""
+        from kishi.krep import krep_search
+        monkeypatch.setattr(
+            "sys.stdin.readline",
+            iter([
+                "database connection error\n",
+                "random other line\n",
+                "",
+            ]).__next__,
+        )
+        rc = krep_search("database", [], limit=5)
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert "database connection error" in captured.out
+
+    def test_dispatch_no_matches_returns_one(self, small_corpus, capsys):
+        """Eşleşme bulunmazsa veya semantic vektör üretilemezse rc=1 dönmeli."""
+        from kishi.krep import krep_search
+        # "zzzqwerty" → q_vec=[0,0,0] → "çıkarılamadı"
+        # ya da q_vec dolu + 0 match → "bulunamadı"
+        # her iki durumda rc==1 olmalı.
+        rc = krep_search("zzzqwerty", [small_corpus], limit=5)
+        assert rc == 1
+        captured = capsys.readouterr()
+        assert ("bulunamadı" in captured.out) or ("çıkarılamadı" in captured.out)
+
+    def test_dispatch_recursive_passes_to_rg(self, tmp_path, capsys):
+        """Recursive mod rg'ye -r olmadan da paths verince rg recurse eder."""
+        from kishi.krep import krep_search, _HAS_RG
+        if not _HAS_RG:
+            pytest.skip("rg not installed")
+        subdir = tmp_path / "deeper"
+        subdir.mkdir()
+        (subdir / "buried.log").write_text("auth token expired\n")
+        rc = krep_search("auth login", [str(tmp_path)], recursive=True, limit=5)
+        captured = capsys.readouterr()
+        assert rc == 0
+        assert "auth token expired" in captured.out

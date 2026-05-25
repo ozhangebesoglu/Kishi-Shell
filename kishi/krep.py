@@ -367,22 +367,83 @@ def render_3d_scatter(query_vec, matches):
     out.append("=" * 55 + "\n")
     return "\n".join(out)
 
+def _krep_finalize(matches, q_vec, limit):
+    """Sort + render + print bloğu. rg ve fallback yolları paylaşır.
+
+    Args:
+        matches: List of (l_vec, similarity, output_str)
+        q_vec: 3D sorgu vektörü
+        limit: top-K
+    Returns:
+        0 (eşleşme var) veya 1 (yok)
+    """
+    if not matches:
+        print(f"{COLOR_RED}krep: Semantik olarak benzer satır bulunamadı.{COLOR_RESET}")
+        return 1
+
+    matches.sort(key=lambda x: x[1], reverse=True)
+    top_matches = matches[:limit]
+
+    # 3D ASCII Grafiği Render Et
+    print(render_3d_scatter(q_vec, top_matches))
+
+    # Eşleşen satırları bas
+    print(f"{COLOR_CYAN}[EŞLEŞEN SATIRLAR - Semantik Benzerliğe Göre Sıralı]{COLOR_RESET}:")
+    for idx, (l_vec, similarity, line_output) in enumerate(top_matches, 1):
+        print(f"{idx}. [{COLOR_GREEN}Mesafe/Sim: {similarity:.2f}{COLOR_RESET}] "
+              f"[X={l_vec[0]:.2f}, Y={l_vec[1]:.2f}, Z={l_vec[2]:.2f}] "
+              f"-> {line_output}")
+
+    return 0
+
+
 def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, limit=5):
     """
     Ana vektör arama arayüzü. Sorguyu vektörleştirir, dosyaları mmap / ham olarak okur
     ve en yakın benzerlikteki satırları koordinatlarıyla listeler.
+
+    Dispatch:
+    - ripgrep sistemde varsa ve dosya argümanı verilmişse: _krep_rg_streaming
+      (150-3000x daha hızlı line-level prefilter).
+    - Aksi halde (rg yok veya stdin modu): yerleşik process_file walker.
     """
     import mmap
-    
+
     # 1. Sorgunun 3D vektörünü bul
     q_vec = vectorize_text(query_str)
     if not any(q_vec):
         print(f"{COLOR_RED}krep: Sorgudan semantik konsept çıkarılamadı.{COLOR_RESET}")
         return 1
-        
+
     print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü: X(Hata)={q_vec[0]:.2f}, Y(Guvenlik)={q_vec[1]:.2f}, Z(Veri)={q_vec[2]:.2f}")
-    
+
     matches = []
+
+    # === DISPATCH: rg streaming yolu (varsa ve dosya argümanı varsa) ===
+    read_from_stdin_check = (not files_or_dirs) or ("-" in files_or_dirs)
+    use_rg = _HAS_RG and not read_from_stdin_check
+    if use_rg:
+        rg_matches, stats = _krep_rg_streaming(
+            query_str=query_str,
+            q_vec=q_vec,
+            paths=files_or_dirs,
+            limit=limit,
+        )
+        if stats.get("reason") == "rg_spawn_failed":
+            pass  # rg patladı — fallback'e düş
+        elif rg_matches:
+            # En az 1 match bulundu — hızlı yol başarılı
+            return _krep_finalize(rg_matches, q_vec, limit)
+        elif stats.get("reason") == "no_pattern":
+            # Sorgu kelimeleri çok kısa (<3 char) — fallback'in
+            # bigram benzerliği genişletmesi tek şans, devam.
+            pass
+        else:
+            # rg pattern ürettiği halde 0 match bulduysa: kullanıcı
+            # "login authorization" yazdı ama dosyada "auth token" var
+            # gibi semantic-eşleşme durumu. Fallback walker'a düş ki
+            # bigram-tabanlı concept-vector eşleşmesi şansı kalsın.
+            pass
     
     def process_file(file_path):
         if not os.path.isfile(file_path):
@@ -480,21 +541,5 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
         # Tarama işlemini yap
         for fpath in target_paths:
             process_file(fpath)
-        
-    if not matches:
-        print(f"{COLOR_RED}krep: Semantik olarak benzer satır bulunamadı.{COLOR_RESET}")
-        return 1
-        
-    # En yakın eşleşenleri benzerliğe göre sırala
-    matches.sort(key=lambda x: x[1], reverse=True)
-    top_matches = matches[:limit]
-    
-    # 3D ASCII Grafiği Render Et
-    print(render_3d_scatter(q_vec, top_matches))
-    
-    # Eşleşen satırları bas
-    print(f"{COLOR_CYAN}[EŞLEŞEN SATIRLAR - Semantik Benzerliğe Göre Sıralı]{COLOR_RESET}:")
-    for idx, (l_vec, similarity, line_output) in enumerate(top_matches, 1):
-        print(f"{idx}. [{COLOR_GREEN}Mesafe/Sim: {similarity:.2f}{COLOR_RESET}] [X={l_vec[0]:.2f}, Y={l_vec[1]:.2f}, Z={l_vec[2]:.2f}] -> {line_output}")
-        
-    return 0
+
+    return _krep_finalize(matches, q_vec, limit)
