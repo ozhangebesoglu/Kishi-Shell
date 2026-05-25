@@ -12,7 +12,7 @@ from kishi import state
 from kishi.builtins import (
     kishi_cd, kishi_pwd, kishi_export, kishi_unset, kishi_test,
     kishi_help, kishi_deactivate, kishi_plugin, kishi_neofetch,
-    BUILTINS_DICT,
+    kishi_krep, BUILTINS_DICT,
 )
 
 
@@ -426,6 +426,55 @@ class TestHelp:
 
 
 # ---------------------------------------------------------------------------
+# krep
+# ---------------------------------------------------------------------------
+
+class TestKrep:
+    def test_krep_help(self, capsys):
+        """krep --help should return 0 and show help text."""
+        result = kishi_krep(["krep", "--help"])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Usage:" in captured.out
+
+    def test_krep_missing_pattern(self, capsys):
+        """krep without args should show error and return 1."""
+        result = kishi_krep(["krep"])
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "Pattern is required" in captured.out
+
+    def test_krep_match_file(self, tmp_path, capsys):
+        """krep should match and colorize occurrences in a file."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("hello world\nthis is kishi shell\nkrep is cool\n")
+
+        result = kishi_krep(["krep", "kishi", str(test_file)])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "this is" in captured.out
+        assert "kishi" in captured.out
+
+    def test_krep_case_insensitive(self, tmp_path, capsys):
+        """krep -i should perform case-insensitive match."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("Hello World\n")
+
+        result = kishi_krep(["krep", "-i", "hello", str(test_file)])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Hello" in captured.out and "World" in captured.out
+
+    def test_krep_no_match(self, tmp_path):
+        """krep should return 1 when no match is found."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("hello world\n")
+
+        result = kishi_krep(["krep", "nonexistent", str(test_file)])
+        assert result == 1
+
+
+# ---------------------------------------------------------------------------
 # BUILTINS_DICT completeness
 # ---------------------------------------------------------------------------
 
@@ -434,7 +483,7 @@ class TestBuiltinsDict:
         "cd", "pwd", "exit", "q", "clear", "history", "h", "help",
         "jobs", "fg", "bg", "export", "unset", "source", ".",
         "test", "[", "setup", "plugin", "neofetch", "fetch",
-        "deactivate",
+        "deactivate", "krep",
     ]
 
     def test_all_expected_commands_registered(self):
