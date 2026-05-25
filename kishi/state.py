@@ -11,10 +11,35 @@ COLOR_YELLOW= "\033[1;33m"
 ALIASES = {}
 FUNCTIONS = {}
 LOCAL_VARS = {}
-SYSTEM_COMMANDS = []
+class CommandList(list):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self._set = set(self)
+
+    def __contains__(self, item):
+        return item in self._set
+
+    def append(self, item):
+        super().append(item)
+        self._set.add(item)
+
+    def extend(self, items):
+        super().extend(items)
+        self._set.update(items)
+
+    def remove(self, item):
+        super().remove(item)
+        self._set.discard(item)
+
+    def clear(self):
+        super().clear()
+        self._set.clear()
+
+SYSTEM_COMMANDS = CommandList()
 BUILTINS = {} # Will be populated by builtins.py
 
 KISHI_SESSION = None
+# Re-align line breaks
 IS_LOGIN_SHELL = False
 IS_INTERACTIVE = False
 
@@ -29,7 +54,7 @@ def load_system_commands():
                 filepath = os.path.join(p, f)
                 if os.path.isfile(filepath) and os.access(filepath, os.X_OK):
                     cmds.add(f)
-    SYSTEM_COMMANDS = list(cmds)
+    SYSTEM_COMMANDS = CommandList(cmds)
 
 def get_cursor_shape():
     """Returns the prompt_toolkit CursorShape based on CURSOR_SHAPE env variable."""

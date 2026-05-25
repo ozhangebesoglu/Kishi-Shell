@@ -150,6 +150,8 @@ class Tokenizer:
         token_has_double = False
         # Set when '&>' is seen; a trailing '2>&1' is appended at the end.
         ampersand_redirect = False
+        braced_var_depth = 0
+        paren_sub_depth = 0
 
         i = 0
         while i < len(cmd_line):
@@ -157,15 +159,34 @@ class Tokenizer:
             
             # 1. Escape (\) character handling
             if escape_next:
-                current_token.append(char)
+                if in_double_quote and char == '$':
+                    current_token.append('\x04')  # Use sentinel to prevent variable expansion
+                else:
+                    current_token.append(char)
                 escape_next = False
                 i += 1
                 continue
                 
             if char == '\\':
-                escape_next = True
-                i += 1
-                continue
+                if in_double_quote:
+                    # Double quotes escape only: ", \, $, `
+                    if i + 1 < len(cmd_line) and cmd_line[i+1] in ('"', '\\', '$', '`'):
+                        escape_next = True
+                        i += 1
+                        continue
+                    else:
+                        current_token.append('\\')
+                        i += 1
+                        continue
+                elif in_single_quote:
+                    # Single quotes do NOT escape anything
+                    current_token.append('\\')
+                    i += 1
+                    continue
+                else:
+                    escape_next = True
+                    i += 1
+                    continue
                 
             # 2. $'...' (Dollar-Single-Quote / ANSI-C Quoting)
             if char == '$' and i + 1 < len(cmd_line) and cmd_line[i+1] == "'" and not in_single_quote and not in_double_quote:
@@ -213,6 +234,40 @@ class Tokenizer:
                 
             # Inside quotes, treat everything as a regular character
             if in_single_quote or in_double_quote:
+                current_token.append(char)
+                i += 1
+                continue
+                
+            # If inside braced variable or command substitution, treat everything as regular character
+            # but keep track of nesting depths
+            if braced_var_depth > 0:
+                if char == '}':
+                    braced_var_depth -= 1
+                elif char == '{':
+                    braced_var_depth += 1
+                current_token.append(char)
+                i += 1
+                continue
+
+            if paren_sub_depth > 0:
+                if char == ')':
+                    paren_sub_depth -= 1
+                elif char == '(':
+                    paren_sub_depth += 1
+                current_token.append(char)
+                i += 1
+                continue
+
+            # Detect the start of a braced variable `${...}`
+            if char == '{' and current_token and current_token[-1] == '$':
+                braced_var_depth += 1
+                current_token.append(char)
+                i += 1
+                continue
+
+            # Detect the start of a command substitution `$(...)`
+            if char == '(' and current_token and current_token[-1] == '$':
+                paren_sub_depth += 1
                 current_token.append(char)
                 i += 1
                 continue

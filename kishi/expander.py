@@ -38,18 +38,81 @@ class Expander:
             # A token that is *exactly* one variable takes the drop-if-empty path
             # (word removal); "$VAR/suffix" falls to the regex so the suffix is
             # kept. Double-quoted empty/undefined vars still yield "".
-            _var_pat = r'\$\{([A-Za-z_][A-Za-z0-9_]*)\}|\$([A-Za-z0-9_]+)'
+            _var_pat = r'\$\{([^}]+)\}|\$([A-Za-z0-9_?#0]+|\?)|\$\$'
             bare = re.fullmatch(_var_pat, arg)
+            
+            def get_raw_var_value(var_name):
+                if not var_name:
+                    return ""
+                if var_name == '?':
+                    return LOCAL_VARS.get('?', '0')
+                if var_name == '$' or var_name == '$$':
+                    return str(os.getpid())
+                if var_name == '0':
+                    return 'kishi'
+                return LOCAL_VARS.get(var_name, os.environ.get(var_name, ALIASES.get(var_name, "")))
+
+            def get_var_value(expr):
+                if not expr:
+                    return ""
+                # 1. Length expansion: ${#VAR}
+                if expr.startswith('#') and len(expr) > 1:
+                    real_var = expr[1:]
+                    val = get_raw_var_value(real_var)
+                    return str(len(val))
+
+                # 2. Default value: ${VAR:-default}
+                if ':-' in expr:
+                    var_name, default_val = expr.split(':-', 1)
+                    val = get_raw_var_value(var_name)
+                    if not val:
+                        return default_val
+                    return val
+
+                # 3. Assign default: ${VAR:=default}
+                if ':=' in expr:
+                    var_name, default_val = expr.split(':=', 1)
+                    val = get_raw_var_value(var_name)
+                    if not val:
+                        LOCAL_VARS[var_name] = default_val
+                        return default_val
+                    return val
+
+                # 4. Alternative value: ${VAR:+alt}
+                if ':+' in expr:
+                    var_name, alt_val = expr.split(':+', 1)
+                    val = get_raw_var_value(var_name)
+                    if val:
+                        return alt_val
+                    return ""
+
+                # Standard variable
+                return get_raw_var_value(expr)
+
             if bare:
-                var_name = bare.group(1) or bare.group(2)
-                val = LOCAL_VARS.get(var_name, os.environ.get(var_name, ALIASES.get(var_name, "")))
+                if bare.group(0) == '$$':
+                    var_name = '$$'
+                else:
+                    var_name = bare.group(1) or bare.group(2)
+                val = get_var_value(var_name)
                 if val or quote_type == 'double':
-                    expanded_args.append(val)
+                    if quote_type is None and val:
+                        import shlex
+                        try:
+                            split_parts = shlex.split(val)
+                        except ValueError:
+                            split_parts = val.split()
+                        if split_parts:
+                            expanded_args.extend(split_parts)
+                    else:
+                        expanded_args.append(val)
                 continue
             elif '$' in arg:
                 def var_replacer(match):
+                    if match.group(0) == '$$':
+                        return get_var_value('$$')
                     v = match.group(1) or match.group(2)
-                    return LOCAL_VARS.get(v, os.environ.get(v, ALIASES.get(v, "")))
+                    return get_var_value(v)
                 arg = re.sub(_var_pat, var_replacer, arg)
 
             # Double-quoted: skip tilde and glob expansion
@@ -58,7 +121,7 @@ class Expander:
                 continue
 
             # 3. Tilde Expansion (unquoted only)
-            if arg.startswith('~/') or arg == '~':
+            if arg.startswith('~'):
                 arg = os.path.expanduser(arg)
 
             # 4. Globbing (unquoted only)
@@ -71,7 +134,8 @@ class Expander:
             else:
                 expanded_args.append(arg)
 
-        return expanded_args
+        # Restore escaped dollar signs from sentinel \x04
+        return [a.replace('\x04', '$') for a in expanded_args]
 
     @staticmethod
     def _command_substitute(s):
@@ -86,13 +150,58 @@ class Expander:
 
         import subprocess
 
+        import sys
+
         def run(cmd):
+            if sys.platform == 'win32':
+                try:
+                    return subprocess.check_output(
+                        cmd, shell=True, text=True, stderr=subprocess.DEVNULL
+                    ).rstrip('\n')
+                except subprocess.CalledProcessError:
+                    return ""
+            
+            import os
+            r, w = os.pipe()
             try:
-                return subprocess.check_output(
-                    cmd, shell=True, text=True, stderr=subprocess.DEVNULL
-                ).rstrip('\n')
-            except subprocess.CalledProcessError:
-                return ""
+                pid = os.fork()
+            except OSError:
+                try:
+                    return subprocess.check_output(
+                        cmd, shell=True, text=True, stderr=subprocess.DEVNULL
+                    ).rstrip('\n')
+                except subprocess.CalledProcessError:
+                    return ""
+
+            if pid == 0:
+                os.close(r)
+                os.dup2(w, 1)
+                os.close(w)
+                
+                from .executor import process_command_line
+                try:
+                    status = process_command_line(cmd) or 0
+                    os._exit(status)
+                except Exception:
+                    os._exit(1)
+            else:
+                os.close(w)
+                output = []
+                try:
+                    while True:
+                        chunk = os.read(r, 4096)
+                        if not chunk:
+                            break
+                        output.append(chunk.decode('utf-8', errors='ignore'))
+                except Exception:
+                    pass
+                finally:
+                    os.close(r)
+                    try:
+                        os.waitpid(pid, 0)
+                    except ChildProcessError:
+                        pass
+                return ''.join(output).rstrip('\n')
 
         out = []
         i = 0
@@ -110,7 +219,8 @@ class Expander:
                         break
                     j += 1
                 if depth == 0:
-                    out.append(run(s[i + 2:j]))
+                    inner_cmd = Expander._command_substitute(s[i + 2:j])
+                    out.append(run(inner_cmd))
                     i = j + 1
                     continue
                 out.append(s[i])  # unbalanced — emit literally
@@ -118,7 +228,8 @@ class Expander:
             elif s[i] == '`':
                 j = s.find('`', i + 1)
                 if j != -1:
-                    out.append(run(s[i + 1:j]))
+                    inner_cmd = Expander._command_substitute(s[i + 1:j])
+                    out.append(run(inner_cmd))
                     i = j + 1
                     continue
                 out.append(s[i])

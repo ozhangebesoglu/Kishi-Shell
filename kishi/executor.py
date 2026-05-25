@@ -187,12 +187,12 @@ def execute_pipeline(pipe_node):
                 if cmd.out_file:
                     mode = "a" if cmd.out_append else "w"
                     try: kwargs['stdout'] = open(cmd.out_file, mode)
-                    except: pass
+                    except OSError: pass
             
             if cmd.err_file:
                 mode = "a" if cmd.err_append else "w"
                 try: kwargs['stderr'] = open(cmd.err_file, mode)
-                except: pass
+                except OSError: pass
             
             try:
                 p = subprocess.Popen(cmd_args_to_run, **kwargs)
@@ -234,21 +234,32 @@ def execute_pipeline(pipe_node):
         user_in_fd, user_out_fd, user_err_fd = None, None, None
         from .state import COLOR_RESET
         
+        def clean_fds():
+            if user_in_fd is not None:
+                try: os.close(user_in_fd)
+                except OSError: pass
+            if user_out_fd is not None:
+                try: os.close(user_out_fd)
+                except OSError: pass
+            if user_err_fd is not None:
+                try: os.close(user_err_fd)
+                except OSError: pass
+
         if cmd.in_file:
             try: user_in_fd = os.open(cmd.in_file, os.O_RDONLY)
-            except: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot read {cmd.in_file}."); return 1
+            except OSError: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot read {cmd.in_file}."); clean_fds(); return 1
             
         if cmd.out_file:
             flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if cmd.out_append else os.O_TRUNC)
             try: user_out_fd = os.open(cmd.out_file, flags, 0o644)
-            except: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.out_file}."); return 1
+            except OSError: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.out_file}."); clean_fds(); return 1
             
         if cmd.err_to_out:
             pass
         elif cmd.err_file:
             flags = os.O_WRONLY | os.O_CREAT | (os.O_APPEND if cmd.err_append else os.O_TRUNC)
             try: user_err_fd = os.open(cmd.err_file, flags, 0o644)
-            except: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.err_file}."); return 1
+            except OSError: print(f"{COLOR_RED}Error:{COLOR_RESET} Cannot write to {cmd.err_file}."); clean_fds(); return 1
 
         final_in_fd = user_in_fd if user_in_fd is not None else in_fd
         final_out_fd = user_out_fd if user_out_fd is not None else out_fd
@@ -263,10 +274,13 @@ def execute_pipeline(pipe_node):
             signal.signal(signal.SIGTTOU, signal.SIG_DFL)
             
             child_pid = os.getpid()
-            if i == 0:
-                os.setpgid(child_pid, child_pid)
-            else:
-                os.setpgid(child_pid, pgid)
+            try:
+                if i == 0:
+                    os.setpgid(child_pid, child_pid)
+                else:
+                    os.setpgid(child_pid, pgid)
+            except OSError:
+                pass
                 
             if final_in_fd != 0: os.dup2(final_in_fd, 0)
             if final_out_fd != 1: os.dup2(final_out_fd, 1)
@@ -302,8 +316,8 @@ def execute_pipeline(pipe_node):
 
             cmd_name = cmd_args_to_run[0]
             if cmd_name in BUILTINS:
-                BUILTINS[cmd_name](cmd_args_to_run)
-                sys.exit(0)
+                status = BUILTINS[cmd_name](cmd_args_to_run)
+                sys.exit(status if status is not None else 0)
             if cmd_name in FUNCTIONS:
                 for idx in range(1, len(cmd_args_to_run)):
                     LOCAL_VARS[str(idx)] = cmd_args_to_run[idx]
@@ -320,7 +334,10 @@ def execute_pipeline(pipe_node):
             # PARENT PROCESS
             if i == 0:
                 pgid = pid
-            os.setpgid(pid, pgid)
+            try:
+                os.setpgid(pid, pgid)
+            except OSError:
+                pass
             pids.append(pid)
             if user_in_fd is not None: os.close(user_in_fd)
             if user_out_fd is not None: os.close(user_out_fd)
@@ -362,6 +379,11 @@ def execute_pipeline(pipe_node):
     return last_status
 
 def execute_ast(node):
+    status = _execute_ast_inner(node)
+    LOCAL_VARS['?'] = str(status)
+    return status
+
+def _execute_ast_inner(node):
     if node is None:
         return 0
         
@@ -491,7 +513,7 @@ def process_command_line(cmd_line):
                         last_arg = Tokenizer.tokenize(last_cmd)[-1]
                         cmd_line = cmd_line.replace('!$', last_arg)
                         expanded = True
-                    except: pass
+                    except Exception: pass
                 
                 if expanded:
                     print(cmd_line)
@@ -503,7 +525,12 @@ def process_command_line(cmd_line):
     tokens = Tokenizer.wrap_tokenize(cmd_line)
     if not tokens:
         return 0
-    ast = Parser.parse(tokens)
-    if ast:
-        return execute_ast(ast)
+    try:
+        ast = Parser.parse(tokens)
+        if ast:
+            return execute_ast(ast)
+    except ValueError as e:
+        print(f"{COLOR_RED}Syntax Error:{COLOR_RESET} {e}", file=sys.stderr)
+        LOCAL_VARS['?'] = '2'
+        return 2
     return 0

@@ -20,8 +20,19 @@ def kishi_cd(args):
         target = os.environ.get("HOME", "/")
     else:
         target = args[1]
+        
+    if target == '-':
+        target = os.environ.get("OLDPWD")
+        if not target:
+            print(f"{COLOR_RED}cd:{COLOR_RESET} OLDPWD not set.")
+            return 1
+        print(target)
+        
+    old_dir = os.getcwd()
     try:
         os.chdir(target)
+        os.environ["OLDPWD"] = old_dir
+        os.environ["PWD"] = os.getcwd()
         return 0
     except FileNotFoundError:
         print(f"{COLOR_RED}OS Error:{COLOR_RESET} Directory '{target}' not found.")
@@ -133,7 +144,7 @@ def kishi_fg(args):
     
     if len(args) > 1:
         try: job_id = int(args[1])
-        except: print("Invalid job id"); return 1
+        except ValueError: print("Invalid job id"); return 1
     else:
         if not JobManager.jobs:
             print("No jobs in background")
@@ -184,7 +195,7 @@ def kishi_fg(args):
         print("fg error:", e)
     finally:
         try: os.tcsetpgrp(shell_tty, old_pgrp)
-        except: pass
+        except Exception: pass
     
     return last_status
 
@@ -197,7 +208,7 @@ def kishi_bg(args):
     
     if len(args) > 1:
         try: job_id = int(args[1])
-        except: print("Invalid job id"); return 1
+        except ValueError: print("Invalid job id"); return 1
     else:
         if not JobManager.jobs:
             print("No stopped jobs")
@@ -668,7 +679,7 @@ def kishi_neofetch(args):
                 m, s = divmod(seconds, 60)
                 h, m = divmod(m, 60)
                 uptime = f"{int(h)}h {int(m)}m"
-        except:
+        except Exception:
             pass
             
     memory = "Unknown"
@@ -687,7 +698,7 @@ def kishi_neofetch(args):
                     if line.startswith("model name"):
                         cpu = line.split(":", 1)[1].strip()
                         break
-        except:
+        except Exception:
             pass
     logo = [
         f"{COLOR_AMBER}  _______  _______  _______  _______  _______ {COLOR_RESET}",

@@ -146,6 +146,8 @@ class Parser:
                         
                     if stream.peek() == 'fi':
                         stream.consume()
+                    else:
+                        raise ValueError("expected 'fi' to close 'if' statement")
                         
                     seq.statements.append(IfNode(cond_ast, then_ast, elif_asts, else_ast))
                     continue
@@ -164,7 +166,10 @@ class Parser:
                     
                     body_ast = parse_sequence(end_tokens=['done'])
                     
-                    if stream.peek() == 'done': stream.consume()
+                    if stream.peek() == 'done':
+                        stream.consume()
+                    else:
+                        raise ValueError("expected 'done' to close 'while' loop")
                     
                     seq.statements.append(WhileNode(cond_ast, body_ast))
                     continue
@@ -185,7 +190,10 @@ class Parser:
                     
                     body_ast = parse_sequence(end_tokens=['done'])
                     
-                    if stream.peek() == 'done': stream.consume()
+                    if stream.peek() == 'done':
+                        stream.consume()
+                    else:
+                        raise ValueError("expected 'done' to close 'for' loop")
                     
                     seq.statements.append(ForNode(var_name, iter_items, body_ast))
                     continue
@@ -204,7 +212,10 @@ class Parser:
                     
                     body_ast = parse_sequence(end_tokens=['done'])
                     
-                    if stream.peek() == 'done': stream.consume()
+                    if stream.peek() == 'done':
+                        stream.consume()
+                    else:
+                        raise ValueError("expected 'done' to close 'until' loop")
                     
                     seq.statements.append(UntilNode(cond_ast, body_ast))
                     continue
@@ -238,7 +249,10 @@ class Parser:
                         else:
                             cases.append((patterns, body_ast))
                     
-                    if stream.peek() == 'esac': stream.consume()
+                    if stream.peek() == 'esac':
+                        stream.consume()
+                    else:
+                        raise ValueError("expected 'esac' to close 'case' statement")
                     
                     seq.statements.append(CaseNode(word, cases, default_ast))
                     continue
@@ -259,7 +273,10 @@ class Parser:
                     
                     body_ast = parse_sequence(end_tokens=['done'])
                     
-                    if stream.peek() == 'done': stream.consume()
+                    if stream.peek() == 'done':
+                        stream.consume()
+                    else:
+                        raise ValueError("expected 'done' to close 'select' loop")
                     
                     seq.statements.append(SelectNode(var_name, iter_items, body_ast))
                     continue

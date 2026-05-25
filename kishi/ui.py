@@ -77,7 +77,7 @@ class KishiCompleter(Completer):
                         yield Completion(full_path + '/', start_position=-len(base_name))
                     else:
                         yield Completion(full_path, start_position=-len(base_name))
-        except: pass
+        except OSError: pass
 
         if is_first_word:
             text_lower = word_before_cursor.lower()
@@ -126,7 +126,7 @@ async def _(event):
         if selected:
             event.app.current_buffer.text = selected
             event.app.current_buffer.cursor_position = len(selected)
-    except: pass
+    except Exception: pass
 
 @kishi_bindings.add('c-e')
 async def _(event):
@@ -152,7 +152,7 @@ def get_prompts():
         term_width = os.get_terminal_size().columns
         if len(display_cwd) > term_width - 15:
             display_cwd = "..." + display_cwd[-(term_width - 20):]
-    except: pass
+    except OSError: pass
         
     venv_prompt = ""
     if "VIRTUAL_ENV" in os.environ:
