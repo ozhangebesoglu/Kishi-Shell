@@ -442,35 +442,47 @@ class TestKrep:
         result = kishi_krep(["krep"])
         assert result == 1
         captured = capsys.readouterr()
-        assert "Pattern is required" in captured.out
+        assert "Pattern (Query) is required" in captured.out
 
     def test_krep_match_file(self, tmp_path, capsys):
-        """krep should match and colorize occurrences in a file."""
+        """krep should semantically match occurrences in a file."""
         test_file = tmp_path / "test.txt"
-        test_file.write_text("hello world\nthis is kishi shell\nkrep is cool\n")
+        test_file.write_text("unrelated message\nlogin authorization required\n")
 
-        result = kishi_krep(["krep", "kishi", str(test_file)])
+        result = kishi_krep(["krep", "auth", str(test_file)])
         assert result == 0
         captured = capsys.readouterr()
-        assert "this is" in captured.out
-        assert "kishi" in captured.out
+        assert "login authorization" in captured.out
+        assert "KREP AI" in captured.out
 
-    def test_krep_case_insensitive(self, tmp_path, capsys):
-        """krep -i should perform case-insensitive match."""
+    def test_krep_case_insensitive_by_default(self, tmp_path, capsys):
+        """krep should perform case-insensitive match by default."""
         test_file = tmp_path / "test.txt"
-        test_file.write_text("Hello World\n")
+        test_file.write_text("LOGIN AUTHORIZATION REQUIRED\n")
 
-        result = kishi_krep(["krep", "-i", "hello", str(test_file)])
+        result = kishi_krep(["krep", "auth", str(test_file)])
         assert result == 0
         captured = capsys.readouterr()
-        assert "Hello" in captured.out and "World" in captured.out
+        assert "LOGIN AUTHORIZATION" in captured.out
+
+    def test_krep_limit_option(self, tmp_path, capsys):
+        """krep should honor the --limit option."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("database save\ndatabase update\ndatabase delete\ndatabase insert\n")
+
+        result = kishi_krep(["krep", "-l", "2", "database", str(test_file)])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "1." in captured.out
+        assert "2." in captured.out
+        assert "3." not in captured.out
 
     def test_krep_no_match(self, tmp_path):
         """krep should return 1 when no match is found."""
         test_file = tmp_path / "test.txt"
         test_file.write_text("hello world\n")
 
-        result = kishi_krep(["krep", "nonexistent", str(test_file)])
+        result = kishi_krep(["krep", "database", str(test_file)])
         assert result == 1
 
 

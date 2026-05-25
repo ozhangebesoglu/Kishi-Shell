@@ -64,7 +64,7 @@ def kishi_clear(args):
     return 0
 def kishi_help(args):
     help_text = f"""
-{COLOR_AMBER}Kishi Shell Advanced (v2.0.0.9) - USER GUIDE{COLOR_RESET}
+{COLOR_AMBER}Kishi Shell Advanced (v2.0.1.0) - USER GUIDE{COLOR_RESET}
 
 [BASIC COMMANDS]:
   cd <dir>       : Changes the directory. (Ex: cd /home, cd ..)
@@ -719,7 +719,7 @@ def kishi_neofetch(args):
         f"{COLOR_CYAN}OS:{COLOR_RESET} {os_name}",
         f"{COLOR_CYAN}Kernel:{COLOR_RESET} {kernel}",
         f"{COLOR_CYAN}Uptime:{COLOR_RESET} {uptime}",
-        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.0.9",
+        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.1.0",
         f"{COLOR_CYAN}CPU:{COLOR_RESET} {cpu}",
         f"{COLOR_CYAN}Memory:{COLOR_RESET} {memory}",
     ]
@@ -734,17 +734,15 @@ def kishi_neofetch(args):
     return 0
 
 def kishi_krep(args):
-    """A premium, colorized command line grep tool for Kishi Shell."""
-    import re
+    """A premium, colorized 3D Semantic AI search tool (Krep) for Kishi Shell."""
+    from kishi.krep import krep_search
     import sys
     import os
 
     # Option parser
-    case_insensitive = False
-    line_number = False
-    invert_match = False
-    word_match = False
+    line_number = True
     recursive = False
+    limit = 5
     pattern = None
     paths = []
 
@@ -755,30 +753,37 @@ def kishi_krep(args):
         if arg.startswith('-') and arg != '-':
             if arg in ('--help', '-h'):
                 print(f"""
-{COLOR_AMBER}krep — Kishi Grep Tool{COLOR_RESET}
+{COLOR_AMBER}krep — Kishi Semantic 3D Vector Search (Krep AI){COLOR_RESET}
 
 {COLOR_CYAN}Usage:{COLOR_RESET}
   krep [OPTIONS] PATTERN [FILE...]
   cat file.txt | krep [OPTIONS] PATTERN
 
 {COLOR_CYAN}Options:{COLOR_RESET}
-  -i          : Case-insensitive search.
-  -n          : Print line numbers.
-  -v          : Invert match (select non-matching lines).
-  -w          : Force PATTERN to match only whole words.
+  -n          : Print line numbers (default).
   -r, -R      : Search recursively in directories.
+  -l, --limit : Max visual matches to display (default: 5).
   -h, --help  : Show this help guide.
 """)
                 return 0
-            for char in arg[1:]:
-                if char == 'i': case_insensitive = True
-                elif char == 'n': line_number = True
-                elif char == 'v': invert_match = True
-                elif char == 'w': word_match = True
-                elif char in ('r', 'R'): recursive = True
+            elif arg in ('-l', '--limit'):
+                if i + 1 < len(args):
+                    i += 1
+                    try:
+                        limit = int(args[i])
+                    except ValueError:
+                        print(f"{COLOR_RED}krep: Invalid limit value: {args[i]}{COLOR_RESET}")
+                        return 1
                 else:
-                    print(f"{COLOR_RED}krep: Invalid option -{char}{COLOR_RESET}")
+                    print(f"{COLOR_RED}krep: Option -l/--limit requires an argument{COLOR_RESET}")
                     return 1
+            else:
+                for char in arg[1:]:
+                    if char == 'n': line_number = True
+                    elif char in ('r', 'R'): recursive = True
+                    else:
+                        print(f"{COLOR_RED}krep: Invalid option -{char}{COLOR_RESET}")
+                        return 1
         else:
             if pattern is None:
                 pattern = arg
@@ -787,116 +792,10 @@ def kishi_krep(args):
         i += 1
 
     if pattern is None:
-        print(f"{COLOR_RED}krep: Pattern is required. Type 'krep --help' for details.{COLOR_RESET}")
+        print(f"{COLOR_RED}krep: Pattern (Query) is required. Type 'krep --help' for details.{COLOR_RESET}")
         return 1
 
-    # Prepare regex pattern
-    regex_pattern = re.escape(pattern)
-    if word_match:
-        regex_pattern = rf"\b{regex_pattern}\b"
-
-    flags = re.IGNORECASE if case_insensitive else 0
-    try:
-        rx = re.compile(regex_pattern, flags)
-    except Exception as e:
-        print(f"{COLOR_RED}krep: Invalid pattern error: {e}{COLOR_RESET}")
-        return 1
-
-    def search_in_file(file_path, show_filename=True):
-        if not os.path.isfile(file_path):
-            return 0
-        matches_found = 0
-        try:
-            with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                for idx, line in enumerate(f, 1):
-                    raw_line = line.rstrip('\n')
-                    match = rx.search(raw_line)
-                    is_match = bool(match)
-                    if invert_match:
-                        is_match = not is_match
-
-                    if is_match:
-                        matches_found += 1
-                        # Build output string
-                        parts = []
-                        if show_filename:
-                            parts.append(f"{COLOR_CYAN}{file_path}{COLOR_RESET}:")
-                        if line_number:
-                            parts.append(f"{COLOR_GREEN}{idx}{COLOR_RESET}:")
-
-                        # Highlight matching term (if not inverted match)
-                        if not invert_match and match:
-                            def repl(m):
-                                return f"{COLOR_AMBER}{m.group(0)}{COLOR_RESET}"
-                            highlighted = rx.sub(repl, raw_line)
-                            parts.append(highlighted)
-                        else:
-                            parts.append(raw_line)
-
-                        print("".join(parts))
-        except OSError as e:
-            print(f"{COLOR_RED}krep: {file_path}: {e.strerror}{COLOR_RESET}")
-        return matches_found
-
-    # If recursive directory search is requested
-    if recursive:
-        search_dirs = paths if paths else ["."]
-        total_matches = 0
-        for sdir in search_dirs:
-            if not os.path.exists(sdir):
-                print(f"{COLOR_RED}krep: {sdir}: No such file or directory{COLOR_RESET}")
-                continue
-            if os.path.isfile(sdir):
-                total_matches += search_in_file(sdir, show_filename=True)
-            else:
-                for root, _, files in os.walk(sdir):
-                    for fname in files:
-                        fpath = os.path.join(root, fname)
-                        total_matches += search_in_file(fpath, show_filename=True)
-        return 0 if total_matches > 0 else 1
-
-    # Standard file or stdin search
-    if not paths or paths == ['-']:
-        # Read from stdin (fd 0)
-        idx = 1
-        matches_found = 0
-        while True:
-            try:
-                line = sys.stdin.readline()
-            except KeyboardInterrupt:
-                break
-            if not line:
-                break
-            raw_line = line.rstrip('\n')
-            match = rx.search(raw_line)
-            is_match = bool(match)
-            if invert_match:
-                is_match = not is_match
-
-            if is_match:
-                matches_found += 1
-                parts = []
-                if line_number:
-                    parts.append(f"{COLOR_GREEN}{idx}{COLOR_RESET}:")
-                if not invert_match and match:
-                    def repl(m):
-                        return f"{COLOR_AMBER}{m.group(0)}{COLOR_RESET}"
-                    highlighted = rx.sub(repl, raw_line)
-                    parts.append(highlighted)
-                else:
-                    parts.append(raw_line)
-                print("".join(parts))
-            idx += 1
-        return 0 if matches_found > 0 else 1
-    else:
-        total_matches = 0
-        show_fn = len(paths) > 1
-        for fpath in paths:
-            if not os.path.exists(fpath):
-                print(f"{COLOR_RED}krep: {fpath}: No such file or directory{COLOR_RESET}")
-                continue
-            total_matches += search_in_file(fpath, show_filename=show_fn)
-        return 0 if total_matches > 0 else 1
+    return krep_search(pattern, paths, line_number=line_number, recursive=recursive, limit=limit)
 
 BUILTINS_DICT = {
     "[": kishi_test,

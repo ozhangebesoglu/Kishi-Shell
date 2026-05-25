@@ -18,3 +18,8 @@ burak/
 Kishi-Plugins/
 ascii-text-art.txt
 POSIX_TODO.md
+
+# Cython compiled extensions and generated C files
+kishi/*.c
+kishi/*.so
+build/
