@@ -83,3 +83,122 @@ class TestBuildRgPattern:
         # En az bir kelime girmeli
         assert "vens" in pattern or "ifre" in pattern or "güvenlik" in pattern \
                or "şifre" in pattern
+
+
+class TestStreamingSearch:
+    @pytest.fixture
+    def tmp_corpus(self, tmp_path):
+        # 3 dosya: auth keyword'lerini içeren, bot/db, boring
+        (tmp_path / "auth.py").write_text(
+            "def login(user):\n"
+            "    auth_token = generate_token()\n"
+            "    return validate(user)\n"
+        )
+        (tmp_path / "config.py").write_text(
+            "DB_HOST = 'localhost'\n"
+            "DB_PORT = 5432\n"
+        )
+        (tmp_path / "boring.txt").write_text(
+            "apple banana cherry\n" * 10
+        )
+        return str(tmp_path)
+
+    def test_streaming_finds_matches(self, tmp_corpus):
+        """Streaming search auth dosyasından eşleşme döndürmeli."""
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        q_vec = vectorize_text("login auth")
+        matches, stats = _krep_rg_streaming(
+            query_str="login auth",
+            q_vec=q_vec,
+            paths=[tmp_corpus],
+            limit=5,
+        )
+        assert isinstance(matches, list)
+        assert len(matches) > 0
+        # auth.py içinde eşleşme olmalı (output_str içinde geçmeli)
+        assert any("auth.py" in m[2] for m in matches)
+        assert stats["lines_vectorized"] > 0
+
+    def test_streaming_no_matches_returns_empty(self, tmp_corpus):
+        """Hiç eşleşmeyen sorgu boş liste dönmeli."""
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        q_vec = vectorize_text("error")
+        matches, stats = _krep_rg_streaming(
+            query_str="qwertyzxcvbn",  # corpus'ta yok
+            q_vec=q_vec,
+            paths=[tmp_corpus],
+            limit=5,
+        )
+        assert matches == []
+
+    def test_streaming_respects_limit_via_early_stop(self, tmp_path):
+        """Limit × 10 match bulunca rg terminate edilmeli (early stop)."""
+        # 100 dosya, her birinde 20 auth-içeren satır → 2000 potansiyel
+        for i in range(100):
+            (tmp_path / f"f{i:03d}.txt").write_text("auth login\n" * 20)
+
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        q_vec = vectorize_text("auth")
+        matches, stats = _krep_rg_streaming(
+            query_str="auth",
+            q_vec=q_vec,
+            paths=[str(tmp_path)],
+            limit=5,
+        )
+        # Early-stop tetiklenmeli (target = 5 × 10 = 50 match)
+        assert stats["early_stopped"] is True
+        assert stats["matches_found"] >= 50
+        # Vektörize edilen satır sayısı target'a yakın olmalı; tüm 2000 değil
+        assert stats["lines_vectorized"] < 200
+
+    def test_streaming_empty_pattern_returns_empty(self, tmp_corpus):
+        """Pattern üretilmezse (örn. tüm kelimeler <3 char) boş dönmeli."""
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        q_vec = vectorize_text("data")  # geçerli q_vec
+        matches, stats = _krep_rg_streaming(
+            query_str="a to",  # build_rg_pattern None döner
+            q_vec=q_vec,
+            paths=[tmp_corpus],
+            limit=5,
+        )
+        assert matches == []
+        assert stats.get("reason") == "no_pattern"
+
+    def test_streaming_non_utf8_files_handled(self, tmp_path):
+        """Non-UTF8 byte içeren dosya hata vermemeli."""
+        bad = tmp_path / "bad.bin"
+        bad.write_bytes(b"auth\xf1login\xff\nokay text here\n")
+
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        q_vec = vectorize_text("auth")
+        matches, stats = _krep_rg_streaming(
+            query_str="auth login",
+            q_vec=q_vec,
+            paths=[str(tmp_path)],
+            limit=5,
+        )
+        # Crash etmemeli; en azından stats döner
+        assert isinstance(stats, dict)
+        assert "elapsed_ms" in stats
+
+    def test_streaming_returns_correct_tuple_format(self, tmp_corpus):
+        """Match formatı (l_vec, similarity, output_str) olmalı."""
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        q_vec = vectorize_text("auth")
+        matches, _ = _krep_rg_streaming(
+            query_str="auth",
+            q_vec=q_vec,
+            paths=[tmp_corpus],
+            limit=5,
+        )
+        assert len(matches) > 0
+        for m in matches:
+            assert len(m) == 3
+            l_vec, sim, output_str = m
+            assert isinstance(l_vec, list)
+            assert len(l_vec) == 3
+            assert isinstance(sim, float)
+            assert 0.0 <= sim <= 1.0
+            assert isinstance(output_str, str)
+            # Renkli output beklenir
+            assert "\033[" in output_str

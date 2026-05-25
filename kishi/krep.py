@@ -36,6 +36,113 @@ def _build_rg_pattern(query):
         return None
     return "|".join(re.escape(w) for w in long_words)
 
+
+import subprocess
+import time as _time
+
+
+def _krep_rg_streaming(query_str, q_vec, paths, limit=5,
+                       max_per_file=20, early_stop_factor=10,
+                       hard_timeout=10.0):
+    """ripgrep tabanlı streaming prefilter + vektörleştirme.
+
+    Args:
+        query_str: kullanıcı sorgusu (pattern üretmek için).
+        q_vec: önceden hesaplanmış 3D sorgu vektörü.
+        paths: aranacak dosya/dizin yolları (rg kendisi recurse eder).
+        limit: kullanıcının istediği top-K eşleşme.
+        max_per_file: rg --max-count flag'i; dosya başına satır limiti.
+        early_stop_factor: limit × bu = early-stop hedefi (default 50).
+        hard_timeout: saniye cinsinden sigorta; rg uzun sürerse öldür.
+
+    Returns:
+        (matches, stats) tuple.
+        matches: List of (l_vec, similarity, output_str) — krep_search formatına uyumlu.
+        stats: {elapsed_ms, lines_read, lines_vectorized, matches_found, early_stopped}.
+    """
+    pattern = _build_rg_pattern(query_str)
+    if pattern is None:
+        return [], {"reason": "no_pattern", "elapsed_ms": 0.0,
+                    "lines_read": 0, "lines_vectorized": 0,
+                    "matches_found": 0, "early_stopped": False}
+
+    # -w (word-boundary) KULLANILMIYOR: 'auth' sorgusu 'auth_token',
+    # 'authenticate', 'authorize' gibi compound kelimelere de matchlemeli.
+    # Krep semantic search — geniş prefilter, dar değil.
+    cmd = ["rg", "-i", "--no-heading", "-n",
+           f"--max-count={max_per_file}",
+           pattern] + list(paths)
+
+    t_start = _time.perf_counter()
+    try:
+        proc = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+        )
+    except (OSError, FileNotFoundError):
+        return [], {"reason": "rg_spawn_failed", "elapsed_ms": 0.0,
+                    "lines_read": 0, "lines_vectorized": 0,
+                    "matches_found": 0, "early_stopped": False}
+
+    matches = []
+    lines_read = 0
+    lines_vectorized = 0
+    early_stopped = False
+    target = max(limit * early_stop_factor, limit)
+
+    try:
+        for raw in proc.stdout:
+            lines_read += 1
+            line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+            # rg format: "filepath:lineno:text"
+            parts = line.split(":", 2)
+            if len(parts) < 3:
+                continue
+            fpath, lineno_str, text = parts
+            text = text.strip()
+            if not text:
+                continue
+            l_vec = vectorize_text(text)
+            lines_vectorized += 1
+            if not any(l_vec):
+                continue
+            sim = cosine_similarity(q_vec, l_vec)
+            if sim < 0.3:
+                continue
+            output_str = (
+                f"{COLOR_CYAN}{fpath}{COLOR_RESET}:"
+                f"{COLOR_GREEN}{lineno_str}{COLOR_RESET}: {text}"
+            )
+            matches.append((l_vec, sim, output_str))
+            if len(matches) >= target:
+                early_stopped = True
+                proc.terminate()
+                break
+            # Hard timeout sigortası
+            if (_time.perf_counter() - t_start) > hard_timeout:
+                early_stopped = True
+                proc.terminate()
+                break
+    finally:
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+
+    elapsed_ms = (_time.perf_counter() - t_start) * 1000.0
+    return matches, {
+        "elapsed_ms": elapsed_ms,
+        "lines_read": lines_read,
+        "lines_vectorized": lines_vectorized,
+        "matches_found": len(matches),
+        "early_stopped": early_stopped,
+    }
+
 # Kavramsal ANSI Renk Kodları
 COLOR_RESET = "\033[0m"
 COLOR_AMBER = "\033[38;2;255;191;0m"
