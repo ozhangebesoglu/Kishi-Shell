@@ -2,6 +2,7 @@ import re
 import math
 import os
 import sys
+import shutil
 
 # Cython C-Engine Entegrasyon Kontrolü
 try:
@@ -9,6 +10,26 @@ try:
     CYTHON_AVAILABLE = True
 except ImportError:
     CYTHON_AVAILABLE = False
+
+# === ripgrep tabanlı streaming prefilter (opsiyonel sistem ikilisi) ===
+_HAS_RG = shutil.which("rg") is not None
+
+
+def _build_rg_pattern(query):
+    """Sorgu metninden ripgrep regex pattern'i üret.
+
+    - En az 3 karakter uzunluğundaki kelimeler alınır (kısa kelimeler
+      false positive üretir, "a", "to", "if" gibi).
+    - Her kelime re.escape ile geçirilir; meta-karakterler güvenli.
+    - Kelimeler '|' ile birleştirilir → rg ALT operator'u olarak yorumlar.
+
+    Returns: pattern string veya None (sorguda işe yarar kelime yoksa).
+    """
+    tokens = query.split()
+    long_tokens = [t for t in tokens if len(re.sub(r'\W', '', t)) >= 3]
+    if not long_tokens:
+        return None
+    return "|".join(re.escape(t) for t in long_tokens)
 
 # Kavramsal ANSI Renk Kodları
 COLOR_RESET = "\033[0m"
