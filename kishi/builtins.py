@@ -64,7 +64,7 @@ def kishi_clear(args):
     return 0
 def kishi_help(args):
     help_text = f"""
-{COLOR_AMBER}Kishi Shell Advanced (v2.0.1.0) - USER GUIDE{COLOR_RESET}
+{COLOR_AMBER}Kishi Shell Advanced (v2.0.1.1) - USER GUIDE{COLOR_RESET}
 
 [BASIC COMMANDS]:
   cd <dir>       : Changes the directory. (Ex: cd /home, cd ..)
@@ -719,7 +719,7 @@ def kishi_neofetch(args):
         f"{COLOR_CYAN}OS:{COLOR_RESET} {os_name}",
         f"{COLOR_CYAN}Kernel:{COLOR_RESET} {kernel}",
         f"{COLOR_CYAN}Uptime:{COLOR_RESET} {uptime}",
-        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.1.0",
+        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.1.1",
         f"{COLOR_CYAN}CPU:{COLOR_RESET} {cpu}",
         f"{COLOR_CYAN}Memory:{COLOR_RESET} {memory}",
     ]
@@ -745,12 +745,17 @@ def kishi_krep(args):
     limit = 5
     pattern = None
     paths = []
+    no_rg = False
 
     # Simple CLI argument parsing
     i = 1
     while i < len(args):
         arg = args[i]
         if arg.startswith('-') and arg != '-':
+            if arg == '--no-rg':
+                no_rg = True
+                i += 1
+                continue
             if arg in ('--help', '-h'):
                 print(f"""
 {COLOR_AMBER}krep — Kishi Semantic 3D Vector Search (Krep AI){COLOR_RESET}
@@ -763,7 +768,13 @@ def kishi_krep(args):
   -n          : Print line numbers (default).
   -r, -R      : Search recursively in directories.
   -l, --limit : Max visual matches to display (default: 5).
+  --no-rg     : Disable ripgrep streaming; use built-in Python engine only.
   -h, --help  : Show this help guide.
+
+{COLOR_CYAN}Performance:{COLOR_RESET}
+  When ripgrep is installed, krep uses a streaming prefilter that's
+  150-3000x faster than the legacy walker on large repositories.
+  Falls back automatically when rg is missing or for stdin input.
 """)
                 return 0
             elif arg in ('-l', '--limit'):
@@ -794,6 +805,17 @@ def kishi_krep(args):
     if pattern is None:
         print(f"{COLOR_RED}krep: Pattern (Query) is required. Type 'krep --help' for details.{COLOR_RESET}")
         return 1
+
+    # --no-rg: ripgrep dispatch'ini geçici devre dışı bırak
+    if no_rg:
+        import kishi.krep as _krep_mod
+        _saved = _krep_mod._HAS_RG
+        _krep_mod._HAS_RG = False
+        try:
+            return krep_search(pattern, paths, line_number=line_number,
+                               recursive=recursive, limit=limit)
+        finally:
+            _krep_mod._HAS_RG = _saved
 
     return krep_search(pattern, paths, line_number=line_number, recursive=recursive, limit=limit)
 

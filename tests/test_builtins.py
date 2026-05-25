@@ -509,3 +509,31 @@ class TestBuiltinsDict:
             if fn is None:
                 continue  # dashboard/explore may be None if import fails
             assert callable(fn), f"'{name}' is not callable"
+
+
+class TestKrepNoRgFlag:
+    def test_no_rg_flag_disables_streaming(self, tmp_path, capsys):
+        """krep --no-rg fallback yolunu zorlar (debug/test için)."""
+        log = tmp_path / "log.txt"
+        log.write_text("auth login event\n")
+        from kishi.builtins import kishi_krep
+        import kishi.krep as krep_mod
+
+        original = krep_mod._HAS_RG
+        try:
+            rc = kishi_krep(["krep", "--no-rg", "auth", str(log)])
+            assert rc == 0
+            captured = capsys.readouterr()
+            assert "auth login event" in captured.out
+            # Test sırasında _HAS_RG False'a setlenmeli; geri yüklenmeli.
+            assert krep_mod._HAS_RG == original, "flag _HAS_RG'yi kalıcı bozmamalı"
+        finally:
+            krep_mod._HAS_RG = original
+
+    def test_no_rg_flag_in_help(self, capsys):
+        """--help çıktısında --no-rg dokümante olmalı."""
+        from kishi.builtins import kishi_krep
+        rc = kishi_krep(["krep", "--help"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "--no-rg" in captured.out
