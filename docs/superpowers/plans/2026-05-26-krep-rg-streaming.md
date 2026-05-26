@@ -919,3 +919,94 @@ git commit -m "chore(krep): add --no-rg flag, bump v2.0.1.1, document perf"
 | Stdlib "auth login" (20k dosya) | 56000 | ~19 | **~3000x** |
 | Stdlib "error timeout" | timeout/56s+ | ~15 | **>3000x** |
 | rg yok, fallback (regresyon yok) | 1900 | ~1900 | **1x** (korundu) |
+
+---
+
+## Implementation Notes — Sapmalar ve Dersler (2026-05-26 sonrası)
+
+Plan uygulandı (commit zinciri: `75ab71c..8b9c587`, branch `feat/krep-rg-streaming`).
+Uygulamada plana göre 5 kasıtlı sapma + 1 ek doğrulama katmanı yapıldı. Hepsi
+ölçümlere dayalı, varsayım yok.
+
+### Sapma 1: `-w` (word-boundary) flag KALDIRILDI
+
+**Plan:** `rg -i -n -w --max-count=20 PATTERN`
+**Uygulama:** `rg -i -n --max-count=20 PATTERN` (`-w` yok)
+
+**Sebep:** `-w` flag'i `auth_token`, `authenticate`, `authorize` gibi compound
+kelimelerin `auth` sorgusuyla eşleşmesini engelliyordu. Krep semantic search —
+geniş prefilter doğru, dar değil. `_w` Kishi test corpus'unda
+`auth.py:auth_token = ...` satırını eşlememeye yol açtı.
+
+**Doğrulama:** `kishi/krep.py:69-71` satırında inline yorum + post-change
+benchmark'ta hız korundu (8 ms / 23 ms).
+
+### Sapma 2: Tokenization — `re.findall(r'[\w]+')`, NOT `query.split()`
+
+**Plan:** `re.findall(r'[\w]+', query)` (Unicode word tokenization)
+**Subagent ilk teklifi:** `query.split()` (literal token koruma)
+
+Subagent ilk implement'ında `split()` kullandı çünkü plan'ın
+`test_regex_metacharacters_escaped` testi `foo.bar → foo\.bar` bekliyordu.
+Gerçek-corpus ölçümünde `findall` semantic OR davranışı (krep'in iddiası)
+ile uyumlu olduğu doğrulandı; "auth.token expired" sorgusu `findall` ile 64
+match, `split` ile 6 match. Test güncellendi (`test_regex_metacharacters_safe`).
+
+**Doğrulama:** `tests/test_krep_streaming.py:42-67` + commit `da0dd94`.
+
+### Sapma 3: Adaptive fallback (rg 0-match → walker)
+
+**Plan:** rg yolu başarılı oldu mu? → ya finalize ya da fallback.
+**Uygulama:** rg pattern üretti ama 0 match döndü → fallback walker'a düş.
+
+**Sebep:** Kullanıcı `krep "login authorization"` yazıp corpus'ta `auth token
+expired` arıyor olabilir. rg sadece literal `login|authorization` arar; walker
+bigram benzerliği ile `auth` ↔ `login` eşler. Krep'in semantic edge'i tam burada.
+
+**Doğrulama:** `tests/test_krep.py::test_krep_search_files` (mevcut test) bu
+adaptive fallback olmadan FAIL ederdi; uygulamadan sonra PASS.
+
+### Sapma 4: PEP8 + pipe close (senior audit fix)
+
+Bağımsız `senior-code-auditor` review iki IMPORTANT bulgu çıkardı:
+
+- `proc.stdout.close()` early-stop'tan önce çağrılmıyor → pipe buffer dolu
+  iken `proc.wait(timeout=2)` 2s blokunda kalıyor → her early-stop 3s
+  gecikme. Fix: `finally` bloğunda önce `stdout.close()`, sonra `terminate()`.
+- `rg_spawn_failed` sessiz fallback → kullanıcı yavaş walker'da neden
+  çalıştığını bilmiyor. Fix: `sys.stderr`'e amber warning.
+
+**Doğrulama:** Commit `8b9c587` + yeni test `test_streaming_terminates_cleanly_on_early_stop` (assert <1s).
+
+### Ek: CI regression guards eklendi (Task 6, plan'da yoktu)
+
+Plan'da hedeflenmemişti ama production-grade'lik için `tests/test_krep_perf.py`'a
+4 kalıcı CI guard eklendi:
+
+- `test_p99_under_strict_threshold` (p99 < 50 ms)
+- `test_no_memory_leak_100_iterations` (RSS delta < 10 MB)
+- `test_thread_safety_smoke` (8 thread × 5 call, 0 exception)
+- `test_no_rg_fallback_still_works` (regresyon koruması)
+
+### Final Stres-Test Bulguları (plan dışı, kullanıcı isteği)
+
+| Test | Sonuç |
+|---|---|
+| 10000 ardışık iteration | 7.74 ms/run avg, RSS +0.2 MB (10k çağrı!), FD leak 0, drift -1.1% |
+| 200 MB tek dosya rg | 7.8 ms avg (early-stop) |
+| /usr top-level (~500k file) | 29 ms |
+| 189k file kombinasyon corpus | 15 ms |
+| 16 thread × 20 paralel | 0 exception |
+| 32 thread cache write | 0 race |
+| 9 hard edge case (binary, symlink loop, null byte, vd.) | Hiç crash yok |
+| Bağımsız senior audit | APPROVED WITH FIXES (uygulandı) |
+| Code coverage | %80 total, ~%89 yeni kod |
+
+### Final Test Sayısı
+
+```
+341 passed in 16.27s
+```
+
+Mevcut 305 baseline + 36 yeni test (streaming, dispatch, perf guards,
+audit-fix regression).
