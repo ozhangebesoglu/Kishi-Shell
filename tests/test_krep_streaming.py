@@ -274,3 +274,78 @@ class TestKrepSearchDispatch:
         captured = capsys.readouterr()
         assert rc == 0
         assert "auth token expired" in captured.out
+
+    def test_dispatch_rg_spawn_failed_falls_back(self, tmp_path, capsys, monkeypatch):
+        """rg spawn fail olursa fallback walker devreye girmeli ve uyarı yazılmalı."""
+        # rg'yi mock'la: subprocess.Popen OSError fırlatıyor gibi yap
+        from kishi.krep import krep_search
+        import kishi.krep as krep_mod
+        import subprocess as _sp
+
+        original_popen = _sp.Popen
+
+        def boom_popen(cmd, *a, **kw):
+            # Sadece rg çağrısında OSError fırlat
+            if cmd and cmd[0] == "rg":
+                raise OSError("simulated spawn failure")
+            return original_popen(cmd, *a, **kw)
+
+        monkeypatch.setattr(_sp, "Popen", boom_popen)
+        monkeypatch.setattr(krep_mod, "_HAS_RG", True)  # rg yokmuş gibi DEĞIL
+
+        (tmp_path / "log.txt").write_text("auth login succeeded\n")
+        rc = krep_search("auth login", [str(tmp_path)], recursive=True, limit=5)
+        captured = capsys.readouterr()
+        # Fallback'e düştüğü için uyarı stderr'de olmalı
+        assert "spawn başarısız" in captured.err or "ripgrep spawn" in captured.err
+        # Fallback walker eşleşmeyi bulmalı
+        assert rc == 0
+        assert "auth login succeeded" in captured.out
+
+    def test_streaming_hard_timeout_safety_net(self, tmp_path, monkeypatch):
+        """hard_timeout parametresi tetiklenebilir — sıfır timeout ile."""
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        # 100 dosya × 50 satır match
+        for i in range(100):
+            (tmp_path / f"f{i}.txt").write_text("auth login\n" * 50)
+
+        q_vec = vectorize_text("auth login")
+        # hard_timeout=0.001 → ilk iterasyondan sonra tetiklenmeli
+        matches, stats = _krep_rg_streaming(
+            query_str="auth login",
+            q_vec=q_vec,
+            paths=[str(tmp_path)],
+            limit=5,
+            hard_timeout=0.001,
+        )
+        # Ya hard_timeout ya early_stop_factor tetiklendi; her halükarda early_stopped True
+        # ve matches sınırlı kaldı (5000 değil, çok daha az)
+        assert stats["early_stopped"] is True
+        assert stats["matches_found"] < 100  # 5000 değil
+
+    def test_streaming_terminates_cleanly_on_early_stop(self, tmp_path):
+        """Early-stop sonrası proc.wait() makul sürede dönmeli (≤ 1s).
+
+        Pipe buffer dolu olsa bile stdout.close() SIGPIPE göndereceği
+        için rg anında çıkmalı. 3 saniyelik regresyon bug'ı yok."""
+        import time as _t
+        from kishi.krep import _krep_rg_streaming, vectorize_text
+        # Yeterince satır üret ki early-stop kesin tetiklensin
+        for i in range(500):
+            (tmp_path / f"f{i}.txt").write_text("auth login\n" * 20)
+        q_vec = vectorize_text("auth")
+
+        t0 = _t.perf_counter()
+        matches, stats = _krep_rg_streaming(
+            query_str="auth login",
+            q_vec=q_vec,
+            paths=[str(tmp_path)],
+            limit=5,
+        )
+        elapsed = _t.perf_counter() - t0
+        assert stats["early_stopped"] is True
+        # 1 saniyenin altında dönmeli — proc.wait gecikmesi olmamalı
+        assert elapsed < 1.0, (
+            f"Early-stop should be fast: took {elapsed:.2f}s "
+            f"(pipe close regression?)"
+        )

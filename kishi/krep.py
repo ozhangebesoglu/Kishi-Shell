@@ -3,6 +3,8 @@ import math
 import os
 import sys
 import shutil
+import subprocess
+import time as _time
 
 # Cython C-Engine Entegrasyon Kontrolü
 try:
@@ -35,10 +37,6 @@ def _build_rg_pattern(query):
     if not long_words:
         return None
     return "|".join(re.escape(w) for w in long_words)
-
-
-import subprocess
-import time as _time
 
 
 def _krep_rg_streaming(query_str, q_vec, paths, limit=5,
@@ -117,14 +115,22 @@ def _krep_rg_streaming(query_str, q_vec, paths, limit=5,
             matches.append((l_vec, sim, output_str))
             if len(matches) >= target:
                 early_stopped = True
-                proc.terminate()
                 break
             # Hard timeout sigortası
             if (_time.perf_counter() - t_start) > hard_timeout:
                 early_stopped = True
-                proc.terminate()
                 break
     finally:
+        # Pipe'ı önce kapat ki rg pipe buffer doluyken SIGPIPE alıp anında çıksın.
+        # Aksi takdirde proc.wait(timeout=2) bloke olur ve her early-stop ~3s
+        # gecikme yaratır (senior audit findings, 2026-05-26).
+        try:
+            if proc.stdout is not None:
+                proc.stdout.close()
+        except OSError:
+            pass
+        if early_stopped:
+            proc.terminate()
         try:
             proc.wait(timeout=2)
         except subprocess.TimeoutExpired:
@@ -430,7 +436,15 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
             limit=limit,
         )
         if stats.get("reason") == "rg_spawn_failed":
-            pass  # rg patladı — fallback'e düş
+            # Sistem'de rg bulundu (PATH) ama Popen başarısız oldu (örn. izin,
+            # ENOMEM, broken executable). Operasyonel görünürlük için stderr
+            # üzerine uyarı bas — kullanıcı yavaş fallback'in nedenini bilsin
+            # (senior audit findings, 2026-05-26).
+            print(
+                f"{COLOR_AMBER}krep: ripgrep spawn başarısız, "
+                f"yerleşik Python motoruna düşülüyor.{COLOR_RESET}",
+                file=sys.stderr,
+            )
         elif rg_matches:
             # En az 1 match bulundu — hızlı yol başarılı
             return _krep_finalize(rg_matches, q_vec, limit)
