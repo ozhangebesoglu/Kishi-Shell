@@ -10,6 +10,17 @@ try:
 except ImportError:
     CYTHON_AVAILABLE = False
 
+# Local Semantic Model (PPMI + SVD) — opsiyonel numpy bağımlılığı
+try:
+    from kishi import krep_learn
+    LEARN_AVAILABLE = krep_learn.LEARN_AVAILABLE
+except ImportError:
+    LEARN_AVAILABLE = False
+    krep_learn = None
+
+# Yüklenmiş modeli paths bazında cache (REPL ömrü)
+_MODEL_CACHE = {}
+
 # Kavramsal ANSI Renk Kodları
 COLOR_RESET = "\033[0m"
 COLOR_AMBER = "\033[38;2;255;191;0m"
@@ -234,64 +245,105 @@ def render_3d_scatter(query_vec, matches):
     out.append("=" * 55 + "\n")
     return "\n".join(out)
 
+def _resolve_model(files_or_dirs):
+    """Verilen paths için kayıtlı LSA modeli varsa yükle (cache'le)."""
+    if not LEARN_AVAILABLE or not files_or_dirs:
+        return None
+    # Stdin modu ("-") veya path olmayanlar atla
+    real_paths = [p for p in files_or_dirs if p != "-" and os.path.exists(p)]
+    if not real_paths:
+        return None
+    cache_key = tuple(sorted(os.path.abspath(p) for p in real_paths))
+    if cache_key in _MODEL_CACHE:
+        return _MODEL_CACHE[cache_key]
+    m = krep_learn.find_model_for(list(real_paths))
+    _MODEL_CACHE[cache_key] = m
+    return m
+
+
+def _vectorize_dispatch(text, model):
+    """text → 3D vektör. Model varsa model'den, yoksa keyword tabanlı."""
+    if model is not None:
+        v, _ = krep_learn.vectorize_with_model(text, model)
+        return [float(v[0]), float(v[1]), float(v[2])]
+    return vectorize_text(text)
+
+
 def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, limit=5):
     """
     Ana vektör arama arayüzü. Sorguyu vektörleştirir, dosyaları mmap / ham olarak okur
     ve en yakın benzerlikteki satırları koordinatlarıyla listeler.
+
+    Dispatch:
+    - Bu paths için kayıtlı PPMI+SVD modeli varsa → model ile vectorize (sözlüksüz).
+    - Yoksa → mevcut keyword (X/Y/Z_KEYWORDS) yolu.
     """
     import mmap
-    
+
+    # 0. Model lookup (varsa)
+    model = _resolve_model(files_or_dirs)
+
     # 1. Sorgunun 3D vektörünü bul
-    q_vec = vectorize_text(query_str)
+    q_vec = _vectorize_dispatch(query_str, model)
     if not any(q_vec):
         print(f"{COLOR_RED}krep: Sorgudan semantik konsept çıkarılamadı.{COLOR_RESET}")
         return 1
-        
-    print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü: X(Hata)={q_vec[0]:.2f}, Y(Guvenlik)={q_vec[1]:.2f}, Z(Veri)={q_vec[2]:.2f}")
+
+    if model is not None:
+        labels = model["axis_labels"]
+        print(f"{COLOR_CYAN}[krep AI · LSA model]{COLOR_RESET} "
+              f"V={model['n_terms']} terms · {model['n_lines']} lines · "
+              f"Axes: [{labels[0][:20]}] [{labels[1][:20]}] [{labels[2][:20]}]")
+        print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü: "
+              f"A0={q_vec[0]:+.2f}, A1={q_vec[1]:+.2f}, A2={q_vec[2]:+.2f}")
+    else:
+        print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü: "
+              f"X(Hata)={q_vec[0]:.2f}, Y(Guvenlik)={q_vec[1]:.2f}, Z(Veri)={q_vec[2]:.2f}")
     
     matches = []
     
     def process_file(file_path):
         if not os.path.isfile(file_path):
             return
-            
-        # Semantik Konsept Budama (Pruning)
-        file_vec = get_file_concept_vector(file_path)
-        if file_vec is not None:
-            has_overlap = False
-            for idx in range(3):
-                if q_vec[idx] > 0.0 and file_vec[idx] > 0.0:
-                    has_overlap = True
-                    break
-            if not has_overlap:
-                return
-                
+
+        # Model yoksa: keyword-based concept pruning. Model varsa: pruning yok
+        # (file-level vec hesaplaması SVD uzayında pahalı + gerek yok).
+        if model is None:
+            file_vec = get_file_concept_vector(file_path)
+            if file_vec is not None:
+                has_overlap = False
+                for idx in range(3):
+                    if q_vec[idx] > 0.0 and file_vec[idx] > 0.0:
+                        has_overlap = True
+                        break
+                if not has_overlap:
+                    return
+
         try:
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
-                # Küçük dosyalar için direkt, büyük dosyalar için mmap
                 size = os.path.getsize(file_path)
                 if size == 0:
                     return
-                    
                 lines = []
-                if size > 1024 * 1024: # > 1MB ise mmap
+                if size > 1024 * 1024:
                     with mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ) as mm:
                         content = mm.read().decode('utf-8', errors='ignore')
                         lines = content.splitlines()
                 else:
                     lines = f.read().splitlines()
-                    
+
                 for idx, line in enumerate(lines, 1):
                     line_clean = line.strip()
                     if not line_clean:
                         continue
-                    l_vec = vectorize_text(line_clean)
+                    l_vec = _vectorize_dispatch(line_clean, model)
                     if not any(l_vec):
                         continue
                     similarity = cosine_similarity(q_vec, l_vec)
-                    # Benzerlik eşiği (en az 0.3)
                     if similarity >= 0.3:
-                        matches.append((l_vec, similarity, f"{COLOR_CYAN}{file_path}{COLOR_RESET}:{COLOR_GREEN}{idx}{COLOR_RESET}: {line_clean}"))
+                        matches.append((l_vec, similarity,
+                                        f"{COLOR_CYAN}{file_path}{COLOR_RESET}:"
+                                        f"{COLOR_GREEN}{idx}{COLOR_RESET}: {line_clean}"))
         except OSError as e:
             print(f"{COLOR_RED}krep: {file_path} okunurken hata: {e.strerror}{COLOR_RESET}")
 
@@ -313,7 +365,7 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
             if not line_clean:
                 idx += 1
                 continue
-            l_vec = vectorize_text(line_clean)
+            l_vec = _vectorize_dispatch(line_clean, model)
             if not any(l_vec):
                 idx += 1
                 continue

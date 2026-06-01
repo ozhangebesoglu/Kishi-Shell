@@ -745,6 +745,10 @@ def kishi_krep(args):
     limit = 5
     pattern = None
     paths = []
+    learn_mode = False
+    no_model = False
+    list_models = False
+    purge_models = False
 
     # Simple CLI argument parsing
     i = 1
@@ -758,14 +762,29 @@ def kishi_krep(args):
 {COLOR_CYAN}Usage:{COLOR_RESET}
   krep [OPTIONS] PATTERN [FILE...]
   cat file.txt | krep [OPTIONS] PATTERN
+  krep --learn PATH...           Build a local LSA model for PATHs.
+  krep --list-models             List built models.
+  krep --purge-models            Delete all built models.
 
 {COLOR_CYAN}Options:{COLOR_RESET}
-  -n          : Print line numbers (default).
-  -r, -R      : Search recursively in directories.
-  -l, --limit : Max visual matches to display (default: 5).
-  -h, --help  : Show this help guide.
+  -n             : Print line numbers (default).
+  -r, -R         : Search recursively in directories.
+  -l, --limit    : Max visual matches to display (default: 5).
+  --learn        : Build PPMI+SVD semantic model for given PATH(s).
+  --no-model     : Bypass any pre-built model; use keyword fallback.
+  --list-models  : Show all cached models.
+  --purge-models : Delete all cached models.
+  -h, --help     : Show this help guide.
 """)
                 return 0
+            elif arg == '--learn':
+                learn_mode = True
+            elif arg == '--no-model':
+                no_model = True
+            elif arg == '--list-models':
+                list_models = True
+            elif arg == '--purge-models':
+                purge_models = True
             elif arg in ('-l', '--limit'):
                 if i + 1 < len(args):
                     i += 1
@@ -791,9 +810,75 @@ def kishi_krep(args):
                 paths.append(arg)
         i += 1
 
+    # --list-models / --purge-models / --learn early-exit
+    if list_models:
+        try:
+            from kishi import krep_learn
+        except ImportError:
+            print(f"{COLOR_RED}krep --list-models: numpy/scipy yok.{COLOR_RESET}")
+            return 1
+        models = krep_learn.list_models()
+        if not models:
+            print(f"{COLOR_AMBER}No cached models. Build one with `krep --learn PATH`.{COLOR_RESET}")
+            return 0
+        for m in models:
+            print(f"{COLOR_CYAN}{m['dir']}{COLOR_RESET}")
+            print(f"  size: {m['size_kb']:.1f} KB · vocab: {m['n_terms']} · lines: {m['n_lines']}")
+            print(f"  sources: {', '.join(m['source_paths'])}")
+            for i_ax, lab in enumerate(m['axis_labels']):
+                print(f"  axis {i_ax}: {lab}")
+        return 0
+
+    if purge_models:
+        try:
+            from kishi import krep_learn
+        except ImportError:
+            print(f"{COLOR_RED}krep --purge-models: numpy/scipy yok.{COLOR_RESET}")
+            return 1
+        n = krep_learn.purge_models()
+        print(f"{COLOR_GREEN}[+] Purged {n} model(s).{COLOR_RESET}")
+        return 0
+
+    if learn_mode:
+        try:
+            from kishi import krep_learn
+        except ImportError:
+            print(f"{COLOR_RED}krep --learn: numpy/scipy gerekli. "
+                  f"Kurulum: pip install numpy scipy{COLOR_RESET}")
+            return 1
+        if not krep_learn.LEARN_AVAILABLE:
+            print(f"{COLOR_RED}krep --learn: numpy/scipy import edilemedi.{COLOR_RESET}")
+            return 1
+        # --learn mode: pattern aslında ilk path; paths geri kalanlar
+        targets = ([pattern] if pattern else []) + paths
+        if not targets:
+            print(f"{COLOR_RED}krep --learn: en az bir PATH gerekli.{COLOR_RESET}")
+            return 1
+        try:
+            model = krep_learn.build_model(targets, verbose=True)
+            saved = krep_learn.save_model(model)
+            print(f"{COLOR_GREEN}[+] Model saved: {saved}{COLOR_RESET}")
+            print(f"    {model['n_terms']} terms, {model['n_lines']} lines, "
+                  f"{model['elapsed_s']:.1f}s build")
+            return 0
+        except RuntimeError as e:
+            print(f"{COLOR_RED}krep --learn failed: {e}{COLOR_RESET}")
+            return 1
+
     if pattern is None:
         print(f"{COLOR_RED}krep: Pattern (Query) is required. Type 'krep --help' for details.{COLOR_RESET}")
         return 1
+
+    # --no-model: model'i geçici devre dışı bırak
+    if no_model:
+        import kishi.krep as _krep_mod
+        _saved = _krep_mod.LEARN_AVAILABLE
+        _krep_mod.LEARN_AVAILABLE = False
+        try:
+            return krep_search(pattern, paths, line_number=line_number,
+                               recursive=recursive, limit=limit)
+        finally:
+            _krep_mod.LEARN_AVAILABLE = _saved
 
     return krep_search(pattern, paths, line_number=line_number, recursive=recursive, limit=limit)
 
