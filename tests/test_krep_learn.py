@@ -559,3 +559,36 @@ class TestEndToEnd:
             sim = kl.cosine(v1, v2)
             # Farklı dosyalarda olduğu için 1.00 olmamalı
             assert sim < 1.0
+
+
+# ---------------------------------------------------------------------------
+# krep_cli — standalone CLI entry point
+# ---------------------------------------------------------------------------
+
+class TestKrepCliEntry:
+    def test_help_exits_zero(self, capsys, monkeypatch):
+        """krep --help should print help and sys.exit(0)."""
+        from kishi import krep_cli
+        monkeypatch.setattr("sys.argv", ["krep", "--help"])
+        with pytest.raises(SystemExit) as exc:
+            krep_cli.main()
+        assert exc.value.code == 0
+        captured = capsys.readouterr()
+        assert "krep" in captured.out.lower()
+        assert "usage" in captured.out.lower()
+
+    def test_no_pattern_exits_one(self, capsys, monkeypatch):
+        """krep without pattern should exit 1."""
+        from kishi import krep_cli
+        monkeypatch.setattr("sys.argv", ["krep"])
+        with pytest.raises(SystemExit) as exc:
+            krep_cli.main()
+        assert exc.value.code == 1
+
+    def test_list_models_exits_zero(self, capsys, monkeypatch, isolated_cache):
+        """krep --list-models should exit 0 even when empty."""
+        from kishi import krep_cli
+        monkeypatch.setattr("sys.argv", ["krep", "--list-models"])
+        with pytest.raises(SystemExit) as exc:
+            krep_cli.main()
+        assert exc.value.code == 0

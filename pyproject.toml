@@ -31,6 +31,7 @@ Issues = "https://github.com/ozhangebesoglu/Kishi-Shell/issues"
 
 [project.scripts]
 kishi = "kishi.main:main"
+krep  = "kishi.krep_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["kishi*"]
