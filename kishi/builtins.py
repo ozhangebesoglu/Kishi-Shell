@@ -64,7 +64,7 @@ def kishi_clear(args):
     return 0
 def kishi_help(args):
     help_text = f"""
-{COLOR_AMBER}Kishi Shell Advanced (v2.0.1.0) - USER GUIDE{COLOR_RESET}
+{COLOR_AMBER}Kishi Shell Advanced (v2.0.2.0) - USER GUIDE{COLOR_RESET}
 
 [BASIC COMMANDS]:
   cd <dir>       : Changes the directory. (Ex: cd /home, cd ..)
@@ -719,7 +719,7 @@ def kishi_neofetch(args):
         f"{COLOR_CYAN}OS:{COLOR_RESET} {os_name}",
         f"{COLOR_CYAN}Kernel:{COLOR_RESET} {kernel}",
         f"{COLOR_CYAN}Uptime:{COLOR_RESET} {uptime}",
-        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.1.0",
+        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.2.0",
         f"{COLOR_CYAN}CPU:{COLOR_RESET} {cpu}",
         f"{COLOR_CYAN}Memory:{COLOR_RESET} {memory}",
     ]
@@ -846,7 +846,10 @@ def kishi_krep(args):
         try:
             from kishi import krep_learn
         except ImportError:
-            print(f"{COLOR_RED}krep --list-models: numpy/scipy yok.{COLOR_RESET}")
+            print(f"{COLOR_RED}krep --list-models requires numpy/scipy.\n"
+                  f"  Install: pip install kishi-shell[krep]\n"
+                  f"  Arch:    sudo pacman -S python-numpy python-scipy"
+                  f"{COLOR_RESET}")
             return 1
         models = krep_learn.list_models()
         if not models:
@@ -875,7 +878,9 @@ def kishi_krep(args):
         try:
             from kishi import krep_learn
         except ImportError:
-            print(f"{COLOR_RED}krep --purge-models: numpy/scipy yok.{COLOR_RESET}")
+            print(f"{COLOR_RED}krep --purge-models requires numpy/scipy.\n"
+                  f"  Install: pip install kishi-shell[krep]"
+                  f"{COLOR_RESET}")
             return 1
         n = krep_learn.purge_models()
         print(f"{COLOR_GREEN}[+] Purged {n} model(s).{COLOR_RESET}")
@@ -885,11 +890,16 @@ def kishi_krep(args):
         try:
             from kishi import krep_learn
         except ImportError:
-            print(f"{COLOR_RED}krep --learn: numpy/scipy gerekli. "
-                  f"Kurulum: pip install numpy scipy{COLOR_RESET}")
+            print(f"{COLOR_RED}krep --learn requires numpy and scipy.\n"
+                  f"  Install: pip install kishi-shell[krep]\n"
+                  f"  Arch:    sudo pacman -S python-numpy python-scipy\n"
+                  f"  (Keyword engine works without these — try `krep PATTERN PATH`)"
+                  f"{COLOR_RESET}")
             return 1
         if not krep_learn.LEARN_AVAILABLE:
-            print(f"{COLOR_RED}krep --learn: numpy/scipy import edilemedi.{COLOR_RESET}")
+            print(f"{COLOR_RED}krep --learn: numpy/scipy import failed.\n"
+                  f"  Run: pip install kishi-shell[krep]"
+                  f"{COLOR_RESET}")
             return 1
         # --learn / --update-learn: pattern ilk path; paths geri kalanlar
         targets = ([pattern] if pattern else []) + paths

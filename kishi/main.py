@@ -247,7 +247,7 @@ def _main_inner():
 
     from kishi.job_control import JobManager
 
-    print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v2.0.1.0){state.COLOR_RESET}")
+    print(f"{state.COLOR_AMBER}Kishi Shell Advanced (v2.0.2.0){state.COLOR_RESET}")
     print("Type 'help' for the command guide.")
 
     while True:
