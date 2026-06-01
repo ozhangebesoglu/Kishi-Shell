@@ -64,10 +64,12 @@ def test_render_3d_scatter():
     q_vec = [1.0, 0.0, 0.0]
     matches = [([1.0, 0.0, 0.0], 1.0, "error detail")]
     chart = render_3d_scatter(q_vec, matches)
+    # Title contains "KREP AI" (TR/EN ortak) ve 3 eksen etiketi var
     assert "KREP AI" in chart
-    assert "X (Hata)" in chart
-    assert "Y (Guvenlik)" in chart
-    assert "Z (Veri)" in chart
+    # Axis labels (TR/EN seçeneklerinden biri)
+    assert any(s in chart for s in ("X (Hata)", "X (Errors)"))
+    assert any(s in chart for s in ("Y (Guvenlik)", "Y (Security)"))
+    assert any(s in chart for s in ("Z (Veri)", "Z (Data)"))
 
 def test_krep_search_files(tmp_path, capsys):
     test_file = tmp_path / "syslog.txt"
@@ -82,7 +84,8 @@ def test_krep_search_files(tmp_path, capsys):
     assert res == 0
     captured = capsys.readouterr()
     assert "auth token expired" in captured.out
-    assert "KREP AI" in captured.out
+    # Header artık "krep · N results · ..." formatında
+    assert "krep" in captured.out and "results" in captured.out
 
 def test_krep_search_recursive(tmp_path, capsys):
     subdir = tmp_path / "logs"

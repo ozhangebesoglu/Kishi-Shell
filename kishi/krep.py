@@ -318,14 +318,15 @@ def render_3d_scatter(query_vec, matches):
         if cy - r >= 0:
             grid[cy - r][cx] = "│"
     grid[cy - 8][cx] = "▲"
-    grid[cy - 8][cx + 2] = "Z (Veri)"
+    from kishi.krep_i18n import t as _t
+    grid[cy - 8][cx + 2] = _t("axis_z")
     
     # 2. Y Ekseni (Güvenlik / Erişim) - Yatay eksen sağa
     for c in range(1, 26):
         if cx + c < width:
             grid[cy][cx + c] = "─"
     grid[cy][cx + 26] = "▶"
-    grid[cy - 1][cx + 23] = "Y (Guvenlik)"
+    grid[cy - 1][cx + 23] = _t("axis_y")
     
     # 3. X Ekseni (Stabilite / Hata) - Çapraz eksen sol-aşağı
     for d in range(1, 7):
@@ -335,7 +336,7 @@ def render_3d_scatter(query_vec, matches):
     if cy + 7 < height and cx - 14 >= 0:
         grid[cy + 7][cx - 14] = "▼"
     if cy + 7 < height and cx - 13 >= 0:
-        grid[cy + 7][cx - 12] = "X (Hata)"
+        grid[cy + 7][cx - 12] = _t("axis_x")
         
     # Origin göstergesi
     grid[cy][cx] = "┼"
@@ -369,7 +370,7 @@ def render_3d_scatter(query_vec, matches):
     # Ekrana bas
     out = []
     out.append("\n" + "=" * 55)
-    out.append(f"            {COLOR_AMBER}KREP AI — 3D SEMANTİK VEKTÖR ALANI{COLOR_RESET}")
+    out.append(f"            {COLOR_AMBER}{_t('scatter_title')}{COLOR_RESET}")
     out.append("=" * 55)
     for row in grid:
         out.append("".join(row))
@@ -516,41 +517,143 @@ def _cosine_anyd(a, b):
     return dot / (na * nb)
 
 
-def _krep_finalize(matches, q_vec, limit, model=None):
-    """Sort + render + print bloğu. rg ve fallback yolları paylaşır.
+def _term_width(default=80):
+    """Terminal genişliği (stdout TTY değilse default)."""
+    try:
+        import shutil as _sh
+        return max(40, _sh.get_terminal_size((default, 20)).columns)
+    except Exception:
+        return default
 
-    match tuple: (l_vec, sim, output_str) veya (l_vec, sim, output_str, raw_text).
-    Model varsa raw_text'ten 3D PCA vec çıkararak scatter doğru renderlenir.
+
+def _color_score(sim):
+    """Skoru renge eşle: yeşil (>=0.8), sarı (>=0.5), kırmızı (<0.5)."""
+    if sim >= 0.8:
+        return COLOR_GREEN
+    if sim >= 0.5:
+        return "\033[1;33m"  # yellow
+    return COLOR_RED
+
+
+def _shorten_path(path, max_len):
+    """Path'i max_len'e kıs. Sadece basename'i tut, çok uzunsa kes."""
+    if len(path) <= max_len:
+        return path
+    base = os.path.basename(path) or path
+    if len(base) <= max_len:
+        return base
+    return "…" + base[-(max_len - 1):]
+
+
+def _krep_finalize(matches, q_vec, limit, model=None,
+                   query_str="", elapsed_ms=0.0, scatter=False,
+                   per_line_timings=None):
+    """Sade çıktı: header (top-right ms), sonuçlar (per-line ms), opt-in scatter.
+
+    Args:
+        matches: List of (l_vec, sim, output_str) or (..., raw_text).
+        q_vec: query vector.
+        limit: top-K.
+        model: LSA model or None.
+        query_str: original user query (for header display).
+        elapsed_ms: total search time in ms (shown top-right).
+        scatter: if True, also render 3D ASCII scatter at bottom.
+        per_line_timings: optional list of ms per match (right-aligned).
     """
+    from kishi.krep_i18n import t
+
+    width = _term_width()
+
+    # ── HEADER ─────────────────────────────────────────────────────────
+    if model is not None:
+        model_info = t("model_lsa",
+                       n_terms=model.get("n_terms", 0),
+                       n_lines=model.get("n_lines", 0))
+    else:
+        model_info = t("model_keyword")
+
     if not matches:
-        print(f"{COLOR_RED}krep: Semantik olarak benzer satır bulunamadı.{COLOR_RESET}")
+        header_key = "no_results_header"
+        n_matches = 0
+    else:
+        header_key = "results_header"
+        n_matches = min(len(matches), limit)
+
+    # Sağa hizalanmış ms — header sonu ile ms arası padding
+    base = t(header_key, n=n_matches, q=query_str,
+             model_info=model_info).rstrip()
+    ms_str = f"{int(elapsed_ms)} ms"
+    # ANSI'den arınmış uzunluk ölç (renk kodları sayılmasın)
+    import re as _re
+    plain_len = len(_re.sub(r"\x1b\[[0-9;]*m", "", base))
+    pad = max(2, width - plain_len - len(ms_str))
+    header = f"{base}{' ' * pad}{COLOR_CYAN}{ms_str}{COLOR_RESET}"
+    print(header)
+    print("─" * width)
+
+    if not matches:
         return 1
 
+    # ── RESULTS ────────────────────────────────────────────────────────
     matches.sort(key=lambda x: x[1], reverse=True)
     top_matches = matches[:limit]
 
-    # Scatter ve listeleme için 3D koordinat
-    q_vec_3d = _vectorize_3d_from_query_text(q_vec, model)
-    scatter_matches = []
-    for item in top_matches:
-        if len(item) >= 4:
-            _hd_vec, sim, output_str, raw_text = item[0], item[1], item[2], item[3]
-            l_vec_3d = _vectorize_3d(raw_text, model)
-        else:
-            _hd_vec, sim, output_str = item[0], item[1], item[2]
-            # HD vec → 3D'ye düş veya l_vec zaten 3D ise olduğu gibi kullan
-            try:
-                l_vec_3d = [float(_hd_vec[0]), float(_hd_vec[1]), float(_hd_vec[2])]
-            except (IndexError, TypeError):
-                l_vec_3d = [0.0, 0.0, 0.0]
-        scatter_matches.append((l_vec_3d, sim, output_str))
+    # output_str içinde ANSI ve format zaten var — burada da kendi sade
+    # formatımızı yapıyoruz çünkü "0.41 path:line text [SPACE] Xms" istiyoruz.
+    # output_str'den path:line:text çıkarmak için regex.
+    line_re = _re.compile(r"\x1b\[[0-9;]*m([^\x1b]+?)\x1b\[0m:\x1b\[[0-9;]*m(\d+)\x1b\[0m:\s*(.*)$")
 
-    print(render_3d_scatter(q_vec_3d, scatter_matches))
-    print(f"{COLOR_CYAN}[EŞLEŞEN SATIRLAR - Semantik Benzerliğe Göre Sıralı]{COLOR_RESET}:")
-    for idx, (l_vec, similarity, line_output) in enumerate(scatter_matches, 1):
-        print(f"{idx}. [{COLOR_GREEN}Mesafe/Sim: {similarity:.2f}{COLOR_RESET}] "
-              f"[X={l_vec[0]:.2f}, Y={l_vec[1]:.2f}, Z={l_vec[2]:.2f}] "
-              f"-> {line_output}")
+    for idx, item in enumerate(top_matches):
+        sim = item[1]
+        output_str = item[2]
+        # path:line:text parse
+        m = line_re.search(output_str)
+        if m:
+            path, lineno, text = m.group(1), m.group(2), m.group(3)
+        else:
+            # Fallback: tüm string
+            path, lineno, text = "?", "?", output_str
+        # text içindeki ANSI strip
+        text = _re.sub(r"\x1b\[[0-9;]*m", "", text)
+
+        ms = (per_line_timings[idx] if per_line_timings and idx < len(per_line_timings) else None)
+        ms_str = f"{ms:.1f} ms" if ms is not None else ""
+
+        # Layout: "0.41  shortpath:line  text…………………………  Xms"
+        score_str = f"{_color_score(sim)}{sim:.2f}{COLOR_RESET}"
+        path_short = _shorten_path(path, max(20, width // 4))
+        prefix = f"{score_str}  {COLOR_CYAN}{path_short}{COLOR_RESET}:{COLOR_GREEN}{lineno}{COLOR_RESET}  "
+
+        # Calculate available space for text
+        prefix_plain_len = len(_re.sub(r"\x1b\[[0-9;]*m", "", prefix))
+        ms_plain_len = len(ms_str) + 2 if ms_str else 0
+        text_budget = max(20, width - prefix_plain_len - ms_plain_len)
+        if len(text) > text_budget:
+            text = text[: text_budget - 1] + "…"
+        text_pad = max(1, width - prefix_plain_len - len(text) - ms_plain_len)
+        if ms_str:
+            print(f"{prefix}{text}{' ' * text_pad}{COLOR_CYAN}{ms_str}{COLOR_RESET}")
+        else:
+            print(f"{prefix}{text}")
+
+    # ── SCATTER (opt-in) ───────────────────────────────────────────────
+    if scatter:
+        q_vec_3d = _vectorize_3d_from_query_text(q_vec, model)
+        scatter_matches = []
+        for item in top_matches:
+            if len(item) >= 4:
+                _hd, sim, output_str, raw_text = item[0], item[1], item[2], item[3]
+                l_vec_3d = _vectorize_3d(raw_text, model)
+            else:
+                _hd, sim, output_str = item[0], item[1], item[2]
+                try:
+                    l_vec_3d = [float(_hd[0]), float(_hd[1]), float(_hd[2])]
+                except (IndexError, TypeError):
+                    l_vec_3d = [0.0, 0.0, 0.0]
+            scatter_matches.append((l_vec_3d, sim, output_str))
+        print()
+        print(render_3d_scatter(q_vec_3d, scatter_matches))
+
     return 0
 
 
@@ -563,7 +666,8 @@ def _vectorize_3d_from_query_text(q_vec, model):
         return [0.0, 0.0, 0.0]
 
 
-def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, limit=5):
+def krep_search(query_str, files_or_dirs, line_number=True, recursive=False,
+                limit=5, scatter=False):
     """
     Ana vektör arama arayüzü. Sorguyu vektörleştirir, dosyaları mmap / ham olarak okur
     ve en yakın benzerlikteki satırları koordinatlarıyla listeler.
@@ -576,6 +680,10 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
     - Aksi halde (rg yok veya stdin modu): yerleşik process_file walker.
     """
     import mmap
+    from kishi.krep_i18n import t
+
+    # Toplam süre ölçümü için başlangıç
+    _search_t0 = _time.perf_counter()
 
     # 0. Model lookup (varsa)
     model = _resolve_model(files_or_dirs)
@@ -583,22 +691,8 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
     # 1. Sorgunun vektörünü bul (model varsa HD, yoksa keyword 3D)
     q_vec = _vectorize_dispatch(query_str, model)
     if not any(q_vec):
-        print(f"{COLOR_RED}krep: Sorgudan semantik konsept çıkarılamadı.{COLOR_RESET}")
+        print(f"{COLOR_RED}{t('err_no_concept')}{COLOR_RESET}")
         return 1
-
-    if model is not None:
-        labels = model["axis_labels"]
-        # Scatter görseli için q_vec'in 3D versiyonu
-        q_vec_3d = _vectorize_3d(query_str, model)
-        print(f"{COLOR_CYAN}[krep AI · LSA model]{COLOR_RESET} "
-              f"V={model['n_terms']} terms · {model['n_lines']} lines · "
-              f"Axes: [{labels[0][:20]}] [{labels[1][:20]}] [{labels[2][:20]}]")
-        print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü (PCA-3): "
-              f"A0={q_vec_3d[0]:+.2f}, A1={q_vec_3d[1]:+.2f}, A2={q_vec_3d[2]:+.2f}")
-    else:
-        print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü: "
-              f"X(Hata)={q_vec[0]:.2f}, Y(Guvenlik)={q_vec[1]:.2f}, Z(Veri)={q_vec[2]:.2f}")
-
 
     matches = []
 
@@ -614,13 +708,15 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
             model=model,
         )
         if stats.get("reason") == "rg_spawn_failed":
-            print(
-                f"{COLOR_AMBER}krep: ripgrep spawn başarısız, "
-                f"yerleşik Python motoruna düşülüyor.{COLOR_RESET}",
-                file=sys.stderr,
-            )
+            print(f"{COLOR_AMBER}{t('rg_spawn_warning')}{COLOR_RESET}",
+                  file=sys.stderr)
         elif rg_matches:
-            return _krep_finalize(rg_matches, q_vec, limit, model=model)
+            return _krep_finalize(
+                rg_matches, q_vec, limit, model=model,
+                query_str=query_str,
+                elapsed_ms=(_time.perf_counter() - _search_t0) * 1000.0,
+                scatter=scatter,
+            )
         elif stats.get("reason") == "no_pattern":
             # Sorgu kelimeleri çok kısa (<3 char) — fallback'in
             # bigram benzerliği genişletmesi tek şans, devam.
@@ -733,4 +829,9 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
         for fpath in target_paths:
             process_file(fpath)
 
-    return _krep_finalize(matches, q_vec, limit, model=model)
+    return _krep_finalize(
+        matches, q_vec, limit, model=model,
+        query_str=query_str,
+        elapsed_ms=(_time.perf_counter() - _search_t0) * 1000.0,
+        scatter=scatter,
+    )

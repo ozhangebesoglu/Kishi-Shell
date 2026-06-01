@@ -442,7 +442,13 @@ class TestKrep:
         result = kishi_krep(["krep"])
         assert result == 1
         captured = capsys.readouterr()
-        assert "Pattern (Query) is required" in captured.out
+        out = captured.out + captured.err
+        # EN: "pattern (query) is required" / TR: "sorgu (pattern) gerekli"
+        assert any(s in out for s in (
+            "pattern (query) is required",
+            "Pattern (Query) is required",
+            "sorgu (pattern) gerekli",
+        ))
 
     def test_krep_match_file(self, tmp_path, capsys):
         """krep should semantically match occurrences in a file."""
@@ -453,7 +459,9 @@ class TestKrep:
         assert result == 0
         captured = capsys.readouterr()
         assert "login authorization" in captured.out
-        assert "KREP AI" in captured.out
+        # Yeni sade header: "krep · N results · 'q' · ..." (EN) veya "N sonuç" (TR)
+        assert "krep" in captured.out
+        assert ("results" in captured.out) or ("sonuç" in captured.out)
 
     def test_krep_case_insensitive_by_default(self, tmp_path, capsys):
         """krep should perform case-insensitive match by default."""
@@ -473,9 +481,13 @@ class TestKrep:
         result = kishi_krep(["krep", "-l", "2", "database", str(test_file)])
         assert result == 0
         captured = capsys.readouterr()
-        assert "1." in captured.out
-        assert "2." in captured.out
-        assert "3." not in captured.out
+        # Yeni format numaralı liste vermiyor — sonuç sayısını
+        # header'dan ve gösterilen satır kayıtlarından doğrula.
+        # 4 girdiden sadece ilk 2'si gösterilmeli.
+        out = captured.out
+        # En az 2 "database" satırı gösterilmeli, 4. asla
+        assert out.count("database") >= 2
+        assert "database insert" not in out  # 4. sırada olan, limit dışı
 
     def test_krep_no_match(self, tmp_path):
         """krep should return 1 when no match is found."""

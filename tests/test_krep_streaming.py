@@ -271,13 +271,18 @@ class TestKrepSearchDispatch:
     def test_dispatch_no_matches_returns_one(self, small_corpus, capsys):
         """Eşleşme bulunmazsa veya semantic vektör üretilemezse rc=1 dönmeli."""
         from kishi.krep import krep_search
-        # "zzzqwerty" → q_vec=[0,0,0] → "çıkarılamadı"
-        # ya da q_vec dolu + 0 match → "bulunamadı"
-        # her iki durumda rc==1 olmalı.
+        # Hem EN (default) hem TR mesajları kabul:
+        # - "zzzqwerty" → q_vec=[0,0,0] → "could not extract" / "çıkarılamadı"
+        # - veya q_vec dolu + 0 match → "no results" / "bulunamadı"
         rc = krep_search("zzzqwerty", [small_corpus], limit=5)
         assert rc == 1
         captured = capsys.readouterr()
-        assert ("bulunamadı" in captured.out) or ("çıkarılamadı" in captured.out)
+        out = captured.out + captured.err
+        assert any(s in out for s in (
+            "bulunamadı", "çıkarılamadı",
+            "no results", "could not extract",
+            "no semantically similar",
+        )), f"Unexpected output: {out[:200]!r}"
 
     def test_dispatch_recursive_passes_to_rg(self, tmp_path, capsys):
         """Recursive mod rg'ye -r olmadan da paths verince rg recurse eder."""

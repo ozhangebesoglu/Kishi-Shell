@@ -752,6 +752,8 @@ def kishi_krep(args):
     update_learn = False
     auto_refresh = None  # None = unset, 0 = disable, > 0 = seconds
     no_rg = False
+    scatter = False                  # ASCII 3D scatter opt-in
+    lang = os.environ.get("KREP_LANG", "en")  # env override, flag wins
 
     # Simple CLI argument parsing
     i = 1
@@ -760,6 +762,22 @@ def kishi_krep(args):
         if arg.startswith('-') and arg != '-':
             if arg == '--no-rg':
                 no_rg = True
+                i += 1
+                continue
+            if arg == '--scatter':
+                scatter = True
+                i += 1
+                continue
+            if arg in ('--lang', '--language'):
+                if i + 1 < len(args):
+                    i += 1
+                    lang = args[i]
+                    i += 1
+                    continue
+                print(f"{COLOR_RED}krep: --lang requires 'en' or 'tr'{COLOR_RESET}")
+                return 1
+            if arg.startswith('--lang='):
+                lang = arg.split('=', 1)[1]
                 i += 1
                 continue
             if arg in ('--help', '-h'):
@@ -776,7 +794,9 @@ def kishi_krep(args):
 {COLOR_CYAN}Options:{COLOR_RESET}
   -n                  : Print line numbers (default).
   -r, -R              : Search recursively in directories.
-  -l, --limit         : Max visual matches to display (default: 5).
+  -l, --limit N       : Max matches to display (default: 5).
+  --scatter           : Also render the 3D ASCII semantic scatter plot.
+  --lang en|tr        : Output language (default: en; or KREP_LANG env).
   --learn             : Build PPMI+SVD semantic model for given PATH(s).
   --update-learn      : Tail-aware incremental update (only new lines).
   --auto-refresh I    : Set auto-refresh interval (e.g. 1h, 30m, 1d, 0=off).
@@ -948,8 +968,21 @@ def kishi_krep(args):
             print(f"{COLOR_RED}krep --learn failed: {e}{COLOR_RESET}")
             return 1
 
+    # Dil ayarla (lazy import — i18n çok küçük, hep yüklenebilir)
+    try:
+        from kishi import krep_i18n
+        krep_i18n.set_lang(lang)
+    except (ImportError, ValueError):
+        # geçersiz dil veya import hatası → EN default
+        pass
+
     if pattern is None:
-        print(f"{COLOR_RED}krep: Pattern (Query) is required. Type 'krep --help' for details.{COLOR_RESET}")
+        try:
+            from kishi.krep_i18n import t as _t
+            msg = _t("err_no_query")
+        except Exception:
+            msg = "krep: pattern (query) is required. Type 'krep --help'."
+        print(f"{COLOR_RED}{msg}{COLOR_RESET}")
         return 1
 
     # --no-model ve/veya --no-rg: ikisini de destekle (birleştirilmiş)
@@ -963,12 +996,14 @@ def kishi_krep(args):
             _krep_mod._HAS_RG = False
         try:
             return krep_search(pattern, paths, line_number=line_number,
-                               recursive=recursive, limit=limit)
+                               recursive=recursive, limit=limit,
+                               scatter=scatter)
         finally:
             _krep_mod.LEARN_AVAILABLE = _saved_learn
             _krep_mod._HAS_RG = _saved_rg
 
-    return krep_search(pattern, paths, line_number=line_number, recursive=recursive, limit=limit)
+    return krep_search(pattern, paths, line_number=line_number,
+                       recursive=recursive, limit=limit, scatter=scatter)
 
 BUILTINS_DICT = {
     "[": kishi_test,
