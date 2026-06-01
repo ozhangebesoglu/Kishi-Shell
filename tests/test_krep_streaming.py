@@ -86,6 +86,15 @@ class TestBuildRgPattern:
 
 
 class TestStreamingSearch:
+    """_krep_rg_streaming sadece ripgrep sistemde varsa çalışır.
+    Yoksa rg_spawn_failed döner; class-level skip uygula."""
+
+    @pytest.fixture(autouse=True)
+    def _require_rg(self):
+        import shutil
+        if shutil.which("rg") is None:
+            pytest.skip("ripgrep not installed; _krep_rg_streaming requires it")
+
     @pytest.fixture
     def tmp_corpus(self, tmp_path):
         # 3 dosya: auth keyword'lerini içeren, bot/db, boring
@@ -312,6 +321,9 @@ class TestKrepSearchDispatch:
 
     def test_streaming_hard_timeout_safety_net(self, tmp_path, monkeypatch):
         """hard_timeout parametresi tetiklenebilir — sıfır timeout ile."""
+        import shutil
+        if shutil.which("rg") is None:
+            pytest.skip("ripgrep not installed")
         from kishi.krep import _krep_rg_streaming, vectorize_text
         # 100 dosya × 50 satır match
         for i in range(100):
@@ -336,6 +348,9 @@ class TestKrepSearchDispatch:
 
         Pipe buffer dolu olsa bile stdout.close() SIGPIPE göndereceği
         için rg anında çıkmalı. 3 saniyelik regresyon bug'ı yok."""
+        import shutil
+        if shutil.which("rg") is None:
+            pytest.skip("ripgrep not installed")
         import time as _t
         from kishi.krep import _krep_rg_streaming, vectorize_text
         # Yeterince satır üret ki early-stop kesin tetiklensin
