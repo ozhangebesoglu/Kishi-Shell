@@ -37,7 +37,8 @@ except ImportError:
 _MIN_TOKEN_LEN = 3       # 3-karakterden kısa kelimeler atılır (a, to, if)
 _MIN_TERM_FREQ = 2       # 1 kez geçen kelimeler atılır (gürültü/typo)
 _MAX_VOCAB = 50_000      # Üst sınır
-_RANK = 3                # 3D embedding
+_RANK = 3                # Görselleştirilecek 3D embedding (final)
+_SVD_RANK = 50           # SVD ara rank — vocab ayrışsın, sonra PCA-3'e düş
 _AXIS_TOP_N = 5          # Eksen auto-label kelime sayısı
 _MAX_FILE_SIZE = 5 * 1024 * 1024  # 5 MB üstü dosya atlanır
 _SKIP_DIRS = (
@@ -331,27 +332,48 @@ def _compute_svd_from_docs(doc_token_sets, term_freq, prev_cooc_pairs=None,
         print(f"[krep --learn] PPMI: {P.nnz} non-zero, "
               f"{time.perf_counter()-t2:.1f}s", file=sys.stderr)
 
-    # --- SVD rank-3 ---
+    # --- SVD rank-K (HD for cosine) + PCA-3 (only for scatter) ---
+    # Önemli mimari: cosine ranking HD vec'lerde (50D) yapılır → gerçek ayrışma.
+    # 3D vec'ler yalnızca scatter plot görseli içindir (PCA reduce, %14 varyans
+    # yeter çünkü amaç sadece "yön gösterme").
     t3 = time.perf_counter()
-    k = _RANK
-    if V <= k:
-        raise RuntimeError(f"Vocab too small for rank-{k} SVD (V={V}).")
-    U, sigma, _ = svds(P, k=k)
+    k_inner = min(_SVD_RANK, V - 1)
+    if V <= _RANK:
+        raise RuntimeError(f"Vocab too small for rank-{_RANK} SVD (V={V}).")
+    U, sigma, _ = svds(P, k=k_inner)
     order = np.argsort(-sigma)
     sigma = sigma[order]
     U = U[:, order]
-    word_vecs = (U * np.sqrt(sigma)).astype(np.float32)
-    if verbose:
-        print(f"[krep --learn] SVD rank-{k}: σ={sigma.round(2).tolist()}, "
-              f"{time.perf_counter()-t3:.1f}s", file=sys.stderr)
+    # HD embedding (V, k_inner) — cosine ranking burada
+    word_vecs_hd = (U * np.sqrt(sigma)).astype(np.float32)
 
-    # --- Auto-label ---
+    # 3D reduce: scatter plot için (cosine için DEĞİL)
+    if k_inner > _RANK:
+        centered = word_vecs_hd - word_vecs_hd.mean(axis=0)
+        U2, sig2, _Vt2 = np.linalg.svd(centered, full_matrices=False)
+        word_vecs_3d = (U2[:, :_RANK] * sig2[:_RANK]).astype(np.float32)
+        var_explained = (sig2[:_RANK]**2).sum() / (sig2**2).sum()
+        if verbose:
+            print(f"[krep --learn] SVD rank-{k_inner} (HD cosine) + "
+                  f"PCA-{_RANK} (scatter, var={var_explained:.1%}), "
+                  f"{time.perf_counter()-t3:.1f}s", file=sys.stderr)
+    else:
+        word_vecs_3d = word_vecs_hd
+        if verbose:
+            print(f"[krep --learn] SVD rank-{k_inner}: "
+                  f"σ={sigma.round(2).tolist()}, "
+                  f"{time.perf_counter()-t3:.1f}s", file=sys.stderr)
+
+    # word_vecs alias = word_vecs_hd (default cosine kullanır)
+    word_vecs = word_vecs_hd
+
+    # --- Auto-label (PCA-3 vec'lerinden — scatter ekseni neyi temsil eder) ---
     freq_arr = np.array([term_freq[vocab_list[i]] for i in range(V)],
                          dtype=np.float32)
     log_freq = np.log1p(freq_arr)
     axis_labels = []
-    for ax in range(k):
-        pos_score = np.maximum(word_vecs[:, ax], 0.0) * log_freq
+    for ax in range(_RANK):
+        pos_score = np.maximum(word_vecs_3d[:, ax], 0.0) * log_freq
         min_freq_mask = freq_arr >= 5
         scores = np.where(min_freq_mask, pos_score, -np.inf)
         top_idx = np.argsort(-scores)[:_AXIS_TOP_N]
@@ -362,10 +384,11 @@ def _compute_svd_from_docs(doc_token_sets, term_freq, prev_cooc_pairs=None,
     return {
         "vocab": vocab_list,
         "vocab_idx": vocab_idx,
-        "word_vecs": word_vecs,
+        "word_vecs": word_vecs,        # HD (50D) — cosine ranking
+        "word_vecs_3d": word_vecs_3d,  # 3D — scatter görsel
         "axis_labels": axis_labels,
         "n_terms": V,
-        "pair_counts": dict(pair_counts),  # state for incremental update
+        "pair_counts": dict(pair_counts),
     }
 
 
@@ -402,14 +425,14 @@ def build_model(source_paths, max_files=None, verbose=True,
     return {
         "vocab": svd_result["vocab"],
         "vocab_idx": svd_result["vocab_idx"],
-        "word_vecs": svd_result["word_vecs"],
+        "word_vecs": svd_result["word_vecs"],          # HD cosine
+        "word_vecs_3d": svd_result["word_vecs_3d"],    # 3D scatter
         "axis_labels": svd_result["axis_labels"],
         "build_time": time.time(),
         "source_paths": [os.path.abspath(p) for p in source_paths],
         "n_lines": n_lines,
         "n_terms": svd_result["n_terms"],
         "elapsed_s": elapsed,
-        # Incremental state
         "file_state": file_state,
         "term_freq": dict(term_freq),
         "pair_counts": svd_result["pair_counts"],
@@ -476,6 +499,7 @@ def update_model(existing_model, source_paths=None, max_files=None, verbose=True
         "vocab": svd_result["vocab"],
         "vocab_idx": svd_result["vocab_idx"],
         "word_vecs": svd_result["word_vecs"],
+        "word_vecs_3d": svd_result["word_vecs_3d"],
         "axis_labels": svd_result["axis_labels"],
         "build_time": time.time(),
         "source_paths": existing_model["source_paths"],
@@ -495,11 +519,11 @@ def save_model(model, dir_path=None):
     if dir_path is None:
         dir_path = model_dir_for(model["source_paths"])
     os.makedirs(dir_path, exist_ok=True)
-    # Numerik: word_vecs
-    np.savez_compressed(
-        os.path.join(dir_path, "vectors.npz"),
-        word_vecs=model["word_vecs"],
-    )
+    # Numerik: HD vec (cosine) + 3D vec (scatter)
+    save_kwargs = {"word_vecs": model["word_vecs"]}
+    if "word_vecs_3d" in model:
+        save_kwargs["word_vecs_3d"] = model["word_vecs_3d"]
+    np.savez_compressed(os.path.join(dir_path, "vectors.npz"), **save_kwargs)
     # Metadata (kullanıcıya görünür, hızlı load)
     meta = {
         "vocab": model["vocab"],
@@ -547,6 +571,7 @@ def load_model(dir_path, with_state=False):
     try:
         with np.load(npz_path) as data:
             word_vecs = data["word_vecs"]
+            word_vecs_3d = data["word_vecs_3d"] if "word_vecs_3d" in data.files else word_vecs
         with open(json_path, "r", encoding="utf-8") as f:
             meta = json.load(f)
         vocab = meta["vocab"]
@@ -554,6 +579,7 @@ def load_model(dir_path, with_state=False):
             "vocab": vocab,
             "vocab_idx": {w: i for i, w in enumerate(vocab)},
             "word_vecs": word_vecs,
+            "word_vecs_3d": word_vecs_3d,
             "axis_labels": meta["axis_labels"],
             "build_time": float(meta["build_time"]),
             "source_paths": meta["source_paths"],
@@ -639,16 +665,21 @@ def format_age(seconds):
     return f"{s // 86400}d"
 
 
-def vectorize_with_model(text, model):
-    """text'i model'in 3D uzayında vektörleştir."""
+def vectorize_with_model(text, model, dim="hd"):
+    """text'i model'in vektör uzayında embed et.
+
+    dim="hd": HD (~50D) — cosine ranking için, gerçek ayrışma.
+    dim="3d": PCA-3 — scatter plot görseli için.
+    """
     tokens = _tokenize(text)
+    table = model["word_vecs"] if dim == "hd" else model.get("word_vecs_3d", model["word_vecs"])
+    out_dim = table.shape[1] if hasattr(table, "shape") else _RANK
     if not tokens:
-        return np.zeros(_RANK, dtype=np.float32), 0
+        return np.zeros(out_dim, dtype=np.float32), 0
     vocab_idx = model["vocab_idx"]
-    word_vecs = model["word_vecs"]
-    vecs = [word_vecs[vocab_idx[w]] for w in tokens if w in vocab_idx]
+    vecs = [table[vocab_idx[w]] for w in tokens if w in vocab_idx]
     if not vecs:
-        return np.zeros(_RANK, dtype=np.float32), 0
+        return np.zeros(out_dim, dtype=np.float32), 0
     v = np.sum(vecs, axis=0)
     n = float(np.linalg.norm(v))
     if n > 0:

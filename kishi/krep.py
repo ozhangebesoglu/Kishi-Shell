@@ -303,11 +303,43 @@ def _trigger_background_refresh(paths):
 
 
 def _vectorize_dispatch(text, model):
-    """text → 3D vektör. Model varsa model'den, yoksa keyword tabanlı."""
+    """text → vektör. Model varsa HD vec (50D), yoksa keyword 3D."""
     if model is not None:
-        v, _ = krep_learn.vectorize_with_model(text, model)
+        v, _ = krep_learn.vectorize_with_model(text, model, dim="hd")
+        return v  # numpy array; cosine_similarity boyut agnostik çalışır
+    return vectorize_text(text)
+
+
+def _vectorize_3d(text, model):
+    """3D scatter için — keyword 3D ya da model'in PCA-3 vec'i."""
+    if model is not None:
+        v, _ = krep_learn.vectorize_with_model(text, model, dim="3d")
         return [float(v[0]), float(v[1]), float(v[2])]
     return vectorize_text(text)
+
+
+def _cosine_anyd(a, b):
+    """Boyut-agnostik cosine. List veya ndarray kabul eder.
+
+    Vec'ler vectorize_with_model'da zaten L2-normalize edildiği için
+    sadece dot product yeter; ama defansif olarak normalize edelim.
+    """
+    if not any(a) or not any(b):
+        return 0.0
+    if hasattr(a, "dot") and hasattr(b, "dot"):
+        # numpy hızlı yol
+        na = float((a * a).sum()) ** 0.5
+        nb = float((b * b).sum()) ** 0.5
+        if na == 0 or nb == 0:
+            return 0.0
+        return float((a * b).sum()) / (na * nb)
+    # Liste fallback
+    dot = sum(x * y for x, y in zip(a, b))
+    na = sum(x * x for x in a) ** 0.5
+    nb = sum(x * x for x in b) ** 0.5
+    if na == 0 or nb == 0:
+        return 0.0
+    return dot / (na * nb)
 
 
 def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, limit=5):
@@ -380,11 +412,12 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
                     l_vec = _vectorize_dispatch(line_clean, model)
                     if not any(l_vec):
                         continue
-                    similarity = cosine_similarity(q_vec, l_vec)
+                    similarity = _cosine_anyd(q_vec, l_vec)
                     if similarity >= 0.3:
                         matches.append((l_vec, similarity,
                                         f"{COLOR_CYAN}{file_path}{COLOR_RESET}:"
-                                        f"{COLOR_GREEN}{idx}{COLOR_RESET}: {line_clean}"))
+                                        f"{COLOR_GREEN}{idx}{COLOR_RESET}: {line_clean}",
+                                        line_clean))
         except OSError as e:
             print(f"{COLOR_RED}krep: {file_path} okunurken hata: {e.strerror}{COLOR_RESET}")
 
@@ -410,9 +443,11 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
             if not any(l_vec):
                 idx += 1
                 continue
-            similarity = cosine_similarity(q_vec, l_vec)
+            similarity = _cosine_anyd(q_vec, l_vec)
             if similarity >= 0.3:
-                matches.append((l_vec, similarity, f"{COLOR_CYAN}stdin{COLOR_RESET}:{COLOR_GREEN}{idx}{COLOR_RESET}: {line_clean}"))
+                matches.append((l_vec, similarity,
+                                f"{COLOR_CYAN}stdin{COLOR_RESET}:{COLOR_GREEN}{idx}{COLOR_RESET}: {line_clean}",
+                                line_clean))
             idx += 1
     else:
         # Dosya yollarını topla
@@ -444,17 +479,30 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
     if not matches:
         print(f"{COLOR_RED}krep: Semantik olarak benzer satır bulunamadı.{COLOR_RESET}")
         return 1
-        
+
     # En yakın eşleşenleri benzerliğe göre sırala
     matches.sort(key=lambda x: x[1], reverse=True)
     top_matches = matches[:limit]
-    
-    # 3D ASCII Grafiği Render Et
-    print(render_3d_scatter(q_vec, top_matches))
-    
-    # Eşleşen satırları bas
+
+    # 3D scatter: HD cosine sonrası top match'leri 3D'ye düşür (sadece görsel için).
+    # Match tuple'ı (l_vec_for_cosine, sim, output_str, raw_text) 4-elementli.
+    q_vec_3d = _vectorize_3d(query_str, model)
+    scatter_matches = []
+    for item in top_matches:
+        if len(item) >= 4:
+            _l_vec, sim, output_str, raw_text = item[0], item[1], item[2], item[3]
+            l_vec_3d = _vectorize_3d(raw_text, model)
+        else:
+            _l_vec, sim, output_str = item[0], item[1], item[2]
+            l_vec_3d = _l_vec  # legacy 3D fallback
+        scatter_matches.append((l_vec_3d, sim, output_str))
+
+    print(render_3d_scatter(q_vec_3d, scatter_matches))
+
+    # Eşleşen satırları bas — 3D koordinatlar scatter'la uyumlu
     print(f"{COLOR_CYAN}[EŞLEŞEN SATIRLAR - Semantik Benzerliğe Göre Sıralı]{COLOR_RESET}:")
-    for idx, (l_vec, similarity, line_output) in enumerate(top_matches, 1):
-        print(f"{idx}. [{COLOR_GREEN}Mesafe/Sim: {similarity:.2f}{COLOR_RESET}] [X={l_vec[0]:.2f}, Y={l_vec[1]:.2f}, Z={l_vec[2]:.2f}] -> {line_output}")
-        
+    for idx, (l_vec, similarity, line_output) in enumerate(scatter_matches, 1):
+        print(f"{idx}. [{COLOR_GREEN}Mesafe/Sim: {similarity:.2f}{COLOR_RESET}] "
+              f"[X={l_vec[0]:.2f}, Y={l_vec[1]:.2f}, Z={l_vec[2]:.2f}] -> {line_output}")
+
     return 0
