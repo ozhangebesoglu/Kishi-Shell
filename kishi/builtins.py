@@ -749,6 +749,8 @@ def kishi_krep(args):
     no_model = False
     list_models = False
     purge_models = False
+    update_learn = False
+    auto_refresh = None  # None = unset, 0 = disable, > 0 = seconds
 
     # Simple CLI argument parsing
     i = 1
@@ -767,24 +769,53 @@ def kishi_krep(args):
   krep --purge-models            Delete all built models.
 
 {COLOR_CYAN}Options:{COLOR_RESET}
-  -n             : Print line numbers (default).
-  -r, -R         : Search recursively in directories.
-  -l, --limit    : Max visual matches to display (default: 5).
-  --learn        : Build PPMI+SVD semantic model for given PATH(s).
-  --no-model     : Bypass any pre-built model; use keyword fallback.
-  --list-models  : Show all cached models.
-  --purge-models : Delete all cached models.
-  -h, --help     : Show this help guide.
+  -n                  : Print line numbers (default).
+  -r, -R              : Search recursively in directories.
+  -l, --limit         : Max visual matches to display (default: 5).
+  --learn             : Build PPMI+SVD semantic model for given PATH(s).
+  --update-learn      : Tail-aware incremental update (only new lines).
+  --auto-refresh I    : Set auto-refresh interval (e.g. 1h, 30m, 1d, 0=off).
+                        On query, if model is older than I, a background
+                        --update-learn is fired (lazy refresh, no daemon).
+  --no-model          : Bypass any pre-built model; use keyword fallback.
+  --list-models       : Show all cached models with age and freshness.
+  --purge-models      : Delete all cached models.
+  -h, --help          : Show this help guide.
+
+{COLOR_CYAN}Examples:{COLOR_RESET}
+  krep --learn /var/log/ --auto-refresh 1h
+  krep "auth failure" /var/log/         # auto-uses model, refreshes lazily
+  krep --update-learn /var/log/         # manual tail-only update
+  krep --list-models
 """)
                 return 0
             elif arg == '--learn':
                 learn_mode = True
+            elif arg == '--update-learn':
+                update_learn = True
             elif arg == '--no-model':
                 no_model = True
             elif arg == '--list-models':
                 list_models = True
             elif arg == '--purge-models':
                 purge_models = True
+            elif arg == '--auto-refresh' or arg.startswith('--auto-refresh='):
+                # Hem '--auto-refresh 1h' hem '--auto-refresh=1h' formatı
+                if arg.startswith('--auto-refresh='):
+                    val = arg.split('=', 1)[1]
+                elif i + 1 < len(args):
+                    i += 1
+                    val = args[i]
+                else:
+                    print(f"{COLOR_RED}krep: --auto-refresh requires INTERVAL "
+                          f"(e.g. 1h, 30m, 1d, 0=off){COLOR_RESET}")
+                    return 1
+                try:
+                    from kishi import krep_learn as _kl
+                    auto_refresh = _kl.parse_interval(val)
+                except (ImportError, ValueError) as e:
+                    print(f"{COLOR_RED}krep: invalid interval '{val}': {e}{COLOR_RESET}")
+                    return 1
             elif arg in ('-l', '--limit'):
                 if i + 1 < len(args):
                     i += 1
@@ -821,9 +852,20 @@ def kishi_krep(args):
         if not models:
             print(f"{COLOR_AMBER}No cached models. Build one with `krep --learn PATH`.{COLOR_RESET}")
             return 0
+        import time as _time
         for m in models:
+            age = _time.time() - m['build_time']
+            ar = int(m.get('auto_refresh_seconds', 0))
+            ar_label = (f"auto-refresh {krep_learn.format_age(ar)}"
+                        if ar > 0 else "auto-refresh off")
+            stale = ar > 0 and age > ar
+            stale_mark = (f"{COLOR_RED}STALE{COLOR_RESET}"
+                          if stale else f"{COLOR_GREEN}FRESH{COLOR_RESET}")
             print(f"{COLOR_CYAN}{m['dir']}{COLOR_RESET}")
-            print(f"  size: {m['size_kb']:.1f} KB · vocab: {m['n_terms']} · lines: {m['n_lines']}")
+            print(f"  size: {m['size_kb']:.1f} KB · vocab: {m['n_terms']} · "
+                  f"lines: {m['n_lines']}")
+            print(f"  age: {krep_learn.format_age(age)} ago · {ar_label} · "
+                  f"{stale_mark}")
             print(f"  sources: {', '.join(m['source_paths'])}")
             for i_ax, lab in enumerate(m['axis_labels']):
                 print(f"  axis {i_ax}: {lab}")
@@ -839,7 +881,7 @@ def kishi_krep(args):
         print(f"{COLOR_GREEN}[+] Purged {n} model(s).{COLOR_RESET}")
         return 0
 
-    if learn_mode:
+    if learn_mode or update_learn:
         try:
             from kishi import krep_learn
         except ImportError:
@@ -849,17 +891,37 @@ def kishi_krep(args):
         if not krep_learn.LEARN_AVAILABLE:
             print(f"{COLOR_RED}krep --learn: numpy/scipy import edilemedi.{COLOR_RESET}")
             return 1
-        # --learn mode: pattern aslında ilk path; paths geri kalanlar
+        # --learn / --update-learn: pattern ilk path; paths geri kalanlar
         targets = ([pattern] if pattern else []) + paths
         if not targets:
             print(f"{COLOR_RED}krep --learn: en az bir PATH gerekli.{COLOR_RESET}")
             return 1
         try:
-            model = krep_learn.build_model(targets, verbose=True)
+            if update_learn:
+                # Mevcut modeli yükle + tail-aware update
+                existing = krep_learn.find_model_for(targets, with_state=True)
+                if existing is None:
+                    print(f"{COLOR_AMBER}krep --update-learn: bu paths için "
+                          f"model bulunamadı. Önce --learn ile build edin.{COLOR_RESET}")
+                    return 1
+                # auto_refresh user override
+                if auto_refresh is not None:
+                    existing["auto_refresh_seconds"] = auto_refresh
+                model = krep_learn.update_model(existing, targets, verbose=True)
+            else:
+                # Full build
+                refresh_val = 0 if auto_refresh is None else auto_refresh
+                model = krep_learn.build_model(
+                    targets, verbose=True,
+                    auto_refresh_seconds=refresh_val,
+                )
             saved = krep_learn.save_model(model)
-            print(f"{COLOR_GREEN}[+] Model saved: {saved}{COLOR_RESET}")
+            mode_label = "updated" if update_learn else "built"
+            ar = model.get("auto_refresh_seconds", 0)
+            ar_label = f"auto-refresh {krep_learn.format_age(ar)}" if ar > 0 else "auto-refresh off"
+            print(f"{COLOR_GREEN}[+] Model {mode_label}: {saved}{COLOR_RESET}")
             print(f"    {model['n_terms']} terms, {model['n_lines']} lines, "
-                  f"{model['elapsed_s']:.1f}s build")
+                  f"{model['elapsed_s']:.1f}s · {ar_label}")
             return 0
         except RuntimeError as e:
             print(f"{COLOR_RED}krep --learn failed: {e}{COLOR_RESET}")

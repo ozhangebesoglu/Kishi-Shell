@@ -246,10 +246,14 @@ def render_3d_scatter(query_vec, matches):
     return "\n".join(out)
 
 def _resolve_model(files_or_dirs):
-    """Verilen paths için kayıtlı LSA modeli varsa yükle (cache'le)."""
+    """Verilen paths için kayıtlı LSA modeli varsa yükle (cache'le).
+
+    Lazy refresh: model'in auto_refresh_seconds'i set + stale ise
+    background subprocess ile --update-learn tetiklenir. Bu sorgu eski
+    modelle devam eder; sıradaki sorgu yeni modeli görür.
+    """
     if not LEARN_AVAILABLE or not files_or_dirs:
         return None
-    # Stdin modu ("-") veya path olmayanlar atla
     real_paths = [p for p in files_or_dirs if p != "-" and os.path.exists(p)]
     if not real_paths:
         return None
@@ -258,7 +262,44 @@ def _resolve_model(files_or_dirs):
         return _MODEL_CACHE[cache_key]
     m = krep_learn.find_model_for(list(real_paths))
     _MODEL_CACHE[cache_key] = m
+    # Lazy auto-refresh tetikle (fire-and-forget)
+    if m is not None and krep_learn.is_stale(m):
+        _trigger_background_refresh(real_paths)
     return m
+
+
+# Bir sorguda en fazla bir kez tetikle (concurrent spawn'u engelle)
+_REFRESH_TRIGGERED = set()
+
+
+def _trigger_background_refresh(paths):
+    """Detached subprocess ile model refresh tetikle. Kullanıcı sorgusunu
+    bekletmez; sonraki sorgu yeni modeli görür."""
+    import subprocess
+    key = tuple(sorted(os.path.abspath(p) for p in paths))
+    if key in _REFRESH_TRIGGERED:
+        return  # bu paths için zaten tetiklendi
+    _REFRESH_TRIGGERED.add(key)
+    # repr() ile escape — shell injection riski yok (shell=False)
+    paths_repr = ", ".join(repr(p) for p in paths)
+    code = (
+        "import sys; "
+        f"sys.path.insert(0, {repr(os.path.dirname(os.path.dirname(__file__)))}); "
+        "from kishi import krep_learn as kl; "
+        f"m = kl.find_model_for([{paths_repr}], with_state=True); "
+        "m2 = kl.update_model(m, verbose=False) if m else None; "
+        "kl.save_model(m2) if m2 else None"
+    )
+    try:
+        subprocess.Popen(
+            [sys.executable, "-c", code],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            start_new_session=True,  # parent ölse bile devam etsin
+        )
+    except OSError:
+        pass
 
 
 def _vectorize_dispatch(text, model):
