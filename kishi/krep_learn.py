@@ -90,7 +90,10 @@ def _walk_files(paths, max_files=None):
         else:
             files_iter = os.walk(root)
         for dirpath, _, filenames in files_iter:
-            if any(skip in dirpath for skip in _SKIP_DIRS):
+            # dirpath sonuna '/' ekle ki "/.git" "/some/.git" gibi exact path
+            # match etsin (önceden "/" eksikse atlama bug'ı vardı).
+            dirpath_padded = dirpath.rstrip("/") + "/"
+            if any(skip in dirpath_padded for skip in _SKIP_DIRS):
                 continue
             for fname in filenames:
                 if max_files and file_count >= max_files:
@@ -227,7 +230,8 @@ def _tokenize(line):
     Filtreler:
     - >= 3 karakter
     - En az 1 harf içermeli (saf-rakam tokenları '033', '12345' atılır)
-    - '_' ile başlayan + rakam içerenler atılır (Cython __pyx_t_2 vb.)
+    - '__' ile başlayanlar Cython/Python compiler internal sayılır → atılır
+      (__pyx_t_2, __pyx_n_u_error, __init__, __main__ vb.)
     """
     out = []
     for w in re.findall(r"[\w]+", line.lower()):
@@ -236,8 +240,8 @@ def _tokenize(line):
         # En az bir harf gerekli — pure-digit tokenları at
         if not any(c.isalpha() for c in w):
             continue
-        # Cython/compiler internal token'ları at (__pyx_*, __cpp_*)
-        if w.startswith("__") and any(c.isdigit() for c in w):
+        # Compiler / Python dunder internal token'ları at
+        if w.startswith("__"):
             continue
         out.append(w)
     return out
@@ -466,16 +470,29 @@ def update_model(existing_model, source_paths=None, max_files=None, verbose=True
               f"{n_lines_new} new lines, {time.perf_counter()-t0:.1f}s",
               file=sys.stderr)
 
-    if n_lines_new == 0 and prev_state:
+    # No-change ama silinmiş dosya olabilir — file_state güncellenmeli.
+    files_deleted = (prev_state and
+                     set(prev_state.keys()) - set(file_state_new.keys()))
+    if n_lines_new == 0 and prev_state and not files_deleted:
         if verbose:
             print(f"[krep --update-learn] No changes detected — "
                   f"model unchanged.", file=sys.stderr)
-        # Sadece build_time'ı güncelle (yeni model dosyası yazılırken refresh
-        # tetiklemesin diye)
         existing_model = dict(existing_model)
         existing_model["build_time"] = time.time()
         existing_model["elapsed_s"] = time.perf_counter() - t0
         return existing_model
+
+    if n_lines_new == 0 and files_deleted:
+        # Silinmiş dosyalar var ama yeni satır yok → SVD'yi yeniden çözmeye
+        # gerek yok ama file_state güncellenmeli ki silinmiş dosyalar gitsin.
+        if verbose:
+            print(f"[krep --update-learn] {len(files_deleted)} file(s) deleted, "
+                  f"updating state only.", file=sys.stderr)
+        out = dict(existing_model)
+        out["build_time"] = time.time()
+        out["file_state"] = file_state_new
+        out["elapsed_s"] = time.perf_counter() - t0
+        return out
 
     # Term freq + pair counts ek (previous'a topla)
     prev_term_freq = existing_model.get("term_freq") or {}
