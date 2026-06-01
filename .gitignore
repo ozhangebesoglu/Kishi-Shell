@@ -7,6 +7,7 @@ dist/
 build/
 .kishi_history
 venv/
+.venv*/
 
 # Odev klasorleri
 seyit/
@@ -18,3 +19,53 @@ burak/
 Kishi-Plugins/
 ascii-text-art.txt
 POSIX_TODO.md
+
+# Cython compiled extensions and generated C files
+kishi/*.c
+kishi/*.so
+
+# Editor / IDE / dev tooling
+.serena/
+.vscode/
+.idea/
+.mypy_cache/
+.pytest_cache/
+.coverage
+*.coverage
+
+# Krep model cache (kullanıcı verisi)
+.krep_models/
+~/.cache/kishi/
+
+# Test artifact'lar — redirect komutlarından artakalan boş dosyalar
+# (echo > Editor, > 1:n, vs.). Repo'ya commit edilmemeli.
+$*
+=*
+&*
+(
+out
+plugin
+weather
+echo
+export
+file
+Editor
+Editör
+Girdi
+Input
+Risk
+Task
+Terminal
+greetnWelcome
+merhabanSisteme
+f
+i
+0
+1:n
+2400x
+60
+sess.log*
+u001b*
+**For
+**NOT:**
+**Tip:**

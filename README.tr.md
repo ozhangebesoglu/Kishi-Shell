@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.0.8)
+#  Kishi Shell (v2.0.2.0)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
@@ -26,8 +26,13 @@ Yükleyici önce `pip3 install .` deneyecektir. Sisteminiz PEP 668 koruması kul
 
 ### Seçenek 3: pip ile Kurulum (PyPI)
 ```bash
-pip install --upgrade kishi-shell
+pip install --upgrade kishi-shell           # Sadece core shell (~30 KB)
+pip install --upgrade "kishi-shell[krep]"   # + Krep AI LSA modeli için numpy/scipy
 ```
+
+Temel kurulum size Kishi Shell + anahtar kelime tabanlı `krep` motorunu verir.
+`[krep]` opsiyonel extra'sı sözlüksüz LSA modeli (`krep --learn PATH` vb.) için
+`numpy + scipy` ekler. Çoğu shell kullanıcısı buna ihtiyaç duymaz.
 
 Terminale `kishi` yazarak Kishi Shell'i başlatabilirsiniz. Çıkmak için `exit` yazmanız yeterlidir.
 
@@ -288,6 +293,152 @@ Girdi → Lexer → Parser → Expander → Executor
 | `tui_fuzzy.py` | Ctrl+R fuzzy arama motoru |
 | `ui.py` | Sözdizimi vurgulama, tamamlama, kısayollar |
 | `main.py` | Login shell, mod algılama, profile sourcing |
+| `krep.py` | 3D semantik vektör arama motoru |
+| `krep_learn.py` | PPMI + SVD modeli: sözlüksüz korpus öğrenme |
+| `krep_core.pyx` | vectorize / cosine için Cython hızlandırma |
+| `krep_cli.py` | Bağımsız `krep` CLI giriş noktası |
+
+---
+
+##  Krep AI — Semantik Arama (v2.0.2.0+)
+
+Krep, **3D semantik vektör arama** aracıdır. `grep`'in aksine **anlamı**
+yakalar: `"auth login"` aramasında `"password validated"`, `"token issued"`
+veya `"yetkilendirme reddedildi"` gibi satırları da bulur.
+
+Krep **hem** gömülü bir Kishi builtin'i **hem de** bağımsız bir CLI olarak
+gelir. `pip install kishi-shell` PATH'inize iki binary ekler: `kishi` ve `krep`.
+
+```bash
+# Herhangi bir shell'den (bash, zsh, fish):
+$ krep "auth login" /var/log/
+$ krep --learn /var/log/ --auto-refresh 1h
+$ cat app.log | krep error
+
+# Kishi REPL içinden:
+Kishi$ -> krep "auth login" /var/log/
+```
+
+### İki motor, otomatik dispatch
+
+1. **Anahtar kelime motoru (varsayılan, sıfır setup):** 3 eksende (Hata /
+   Güvenlik / Veri) 178 kelimelik dahili sözlük. Kutudan çıkar çıkmaz çalışır.
+2. **LSA modeli (`krep --learn PATH`):** Korpustan PPMI + SVD ile eğitilmiş.
+   Sözlük, eksenler, kelime vektörleri **gerçek dosyalardan** otomatik
+   öğrenilir — manuel kelime listesi yok. Yapısı gereği çok dilli.
+   **Opsiyonel extra gerektirir:** `pip install kishi-shell[krep]`
+   (numpy + scipy ekler).
+
+`krep --learn /var/log/` çağırdığında Krep:
+- Tüm binary olmayan dosyaları tarar, tokenize eder (Unicode-aware)
+- Sparse cooccurrence matrisi kurar
+- PPMI (Positive Pointwise Mutual Information) ile normalize eder
+- SVD rank-50 ile HD word embeddings hesaplar (cosine ranking için)
+- PCA-3'e düşürür (yalnızca ASCII scatter görseli için)
+- Her ekseni top-5 temsilci kelime ile otomatik etiketler
+- `~/.cache/kishi/krep_models/<path-hash>/` altına kaydeder
+
+```bash
+$ krep --learn /var/log/ --auto-refresh 1h
+[krep --learn] Vocab: 12,438 terms, 891,234 lines
+[krep --learn] SVD rank-50 + PCA-3 (var=17.3%), 2.1s
+[krep --learn] Axis 0: error fail timeout exception denied
+[krep --learn] Axis 1: auth login user session token
+[krep --learn] Axis 2: file query select read write
+[+] Model saved: ~/.cache/kishi/krep_models/var_log_a8f3.../
+    12438 terms, 891234 lines, 2.1s · auto-refresh 1h
+```
+
+### Tail-aware incremental güncelleme
+
+Log dosyaları append-only'dir. Krep her dosyanın son okunan byte offset'ini,
+mtime'ını ve boyutunu izler. `krep --update-learn` çağrıldığında yalnızca
+**yeni satırlar** işlenir:
+
+```bash
+$ krep --update-learn /var/log/        # sadece tail, build süresinin ~%5'i
+$ krep --list-models                   # cache'deki modelleri gör
+$ krep --purge-models                  # hepsini sil
+```
+
+Rotation/truncate otomatik tespit edilir: dosya boyutu küçülürse baştan okunur.
+
+### Lazy auto-refresh (daemon yok, cron yok)
+
+`--auto-refresh INTERVAL` modele bir tazelik eşiği yazar. Her sorguda model
+eşikten eskiyse Krep **background subprocess** ile yeniler (fire-and-forget).
+Mevcut sorgu eski modelle devam eder; sıradaki sorgu yeniyi görür.
+
+```bash
+$ krep --learn /var/log/ --auto-refresh 1h
+$ krep "auth failure" /var/log/         # 5 saat sonra
+  # ↓ Background'da refresh tetiklenir
+  # ↓ Bu sorgu eski modeli kullanır (hızlı)
+$ krep "auth failure" /var/log/         # 3 saniye sonra
+  # ↓ Yeni model otomatik yüklenir (cache mtime-invalidated)
+```
+
+İnterval'ler insancıl: `1h`, `30m`, `1d`, `2w`, `45s`, ya da kapatmak için `0`.
+
+### ripgrep yüklüyse 200-3000× hızlanma
+
+PATH'inizde `rg` (ripgrep) varsa Krep onu otomatik **streaming prefilter**
+olarak kullanır: yalnızca eşleşen satırlar vektörleştirilir, gerisi atlanır.
+`limit × 10` eşleşmeden sonra erken sonlandırma. Şu durumlarda yerleşik
+Python motoruna düşer:
+- `rg` yüklü değil,
+- stdin pipe modu,
+- `rg` 0 eşleşme dönerse (semantic neighbor için walker gerek).
+
+```bash
+$ krep --no-rg "auth login" /var/log/   # saf Python motorunu zorla
+```
+
+Doğrulanmış benchmark'lar (3-run avg, 12-core x86_64):
+
+| Korpus | Sorgu | Walker | rg-streaming | Hızlanma |
+|--------|-------|------:|-------------:|---------:|
+| Kishi repo (~5k satır)      | `auth login`     | 1068 ms | **5 ms** | 206× |
+| Python stdlib (~6.8M satır) | `auth login`     | timeout | **11 ms** | >5000× |
+| Python stdlib               | `database query` | timeout | **14 ms** | >4000× |
+| 1 GB tek dosya (17M satır)  | `auth login`     | timeout | **6 ms**  | >10000× |
+
+---
+
+##  Krep Performansı (v2.0.1.1+)
+
+Krep AI, `krep` builtin'i için iki yollu arama mimarisi kullanır:
+
+1. **ripgrep-streaming (rg yüklüyse varsayılan):**
+   - Sorgudan word-only regex üretir (`auth login` → `auth|login`).
+   - `rg -i -n --max-count=20` streaming subprocess'i çalıştırır.
+   - stdout'u satır satır okur, her eşleşmeyi vektörleştirir, cosine benzerliği hesaplar.
+   - `limit × 10` eşleşme bulunca `rg`'yi erken sonlandırır.
+   - **Sonuç: sequential walker'a göre 100-3000x daha hızlı.**
+
+2. **Yerleşik Python motoru (semantik fallback):** mtime-keyed in-memory
+   concept-vector cache + satır seviyesinde bigram vektörleştirme. Şu durumlarda devreye girer:
+   - ripgrep yüklü değil,
+   - girdi stdin,
+   - rg'nin literal pass'i 0 eşleşme döndü ama kullanıcının sorgusunun
+     korpusta semantik komşusu var (örn. `login authorization` →
+     `auth token expired` satırını eşler).
+
+Override:
+```bash
+krep --no-rg PATTERN YOL    # Python motorunu zorla (debug/test)
+```
+
+Doğrulanmış benchmark'lar (3 koşu ortalaması, 12-core x86_64, Python 3.14, ripgrep 15.1):
+| Korpus | Sorgu | Walker | rg-streaming | Hızlanma |
+|--------|-------|------:|-------------:|---------:|
+| Kishi repo (~5k satır)     | `auth login`     | 1068 ms | **5 ms** | 206x |
+| Kishi repo                 | `error timeout`  | 1103 ms | **7 ms** | 156x |
+| Kishi repo                 | `database query` | 1071 ms | **5 ms** | 210x |
+| Tests klasörü (~3k satır)  | `auth login`     | 1053 ms | **6 ms** | 171x |
+| Python stdlib (~6.8M satır)| `auth login`     | timeout (>60 s) | **11 ms** | >5000x |
+| Python stdlib              | `error timeout`  | timeout | **9 ms**  | >6000x |
+| Python stdlib              | `database query` | timeout | **14 ms** | >4000x |
 
 ---
 

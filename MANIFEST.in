@@ -1,0 +1,39 @@
+include README.md
+include README.tr.md
+include LICENSE
+include CONTRIBUTING.md
+include requirements.txt
+include setup.py
+include pyproject.toml
+
+# Cython source — sdist'te bulunmazsa build başarısız olur
+recursive-include kishi *.pyx
+recursive-include kishi *.py
+
+# Test'leri sdist'e dahil et (downstream'lerin doğrulamayabilmesi için)
+recursive-include tests *.py
+
+# Plan + benchmark belgeleri
+recursive-include docs *.md
+
+# Asset'ler README için
+recursive-include assets *.png
+
+# Cython generated artifact'ları sdist'te ekleme (build sırasında üretilir)
+exclude kishi/*.c
+exclude kishi/*.so
+
+# Dev / IDE / cache dosyalarını dışla
+global-exclude __pycache__
+global-exclude *.py[cod]
+global-exclude .DS_Store
+global-exclude .coverage
+prune .serena
+prune .vscode
+prune .mypy_cache
+prune .pytest_cache
+prune .git
+prune .github
+prune build
+prune dist
+prune *.egg-info

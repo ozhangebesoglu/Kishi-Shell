@@ -64,7 +64,7 @@ def kishi_clear(args):
     return 0
 def kishi_help(args):
     help_text = f"""
-{COLOR_AMBER}Kishi Shell Advanced (v2.0.0.8) - USER GUIDE{COLOR_RESET}
+{COLOR_AMBER}Kishi Shell Advanced (v2.0.2.0) - USER GUIDE{COLOR_RESET}
 
 [BASIC COMMANDS]:
   cd <dir>       : Changes the directory. (Ex: cd /home, cd ..)
@@ -719,7 +719,7 @@ def kishi_neofetch(args):
         f"{COLOR_CYAN}OS:{COLOR_RESET} {os_name}",
         f"{COLOR_CYAN}Kernel:{COLOR_RESET} {kernel}",
         f"{COLOR_CYAN}Uptime:{COLOR_RESET} {uptime}",
-        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.0.8",
+        f"{COLOR_CYAN}Shell:{COLOR_RESET} Kishi-Shell v2.0.2.0",
         f"{COLOR_CYAN}CPU:{COLOR_RESET} {cpu}",
         f"{COLOR_CYAN}Memory:{COLOR_RESET} {memory}",
     ]
@@ -732,6 +732,243 @@ def kishi_neofetch(args):
         print(f"{l}  {r}")
     print()
     return 0
+
+def kishi_krep(args):
+    """A premium, colorized 3D Semantic AI search tool (Krep) for Kishi Shell."""
+    from kishi.krep import krep_search
+    import sys
+    import os
+
+    # Option parser
+    line_number = True
+    recursive = False
+    limit = 5
+    pattern = None
+    paths = []
+    learn_mode = False
+    no_model = False
+    list_models = False
+    purge_models = False
+    update_learn = False
+    auto_refresh = None  # None = unset, 0 = disable, > 0 = seconds
+    no_rg = False
+
+    # Simple CLI argument parsing
+    i = 1
+    while i < len(args):
+        arg = args[i]
+        if arg.startswith('-') and arg != '-':
+            if arg == '--no-rg':
+                no_rg = True
+                i += 1
+                continue
+            if arg in ('--help', '-h'):
+                print(f"""
+{COLOR_AMBER}krep — Kishi Semantic 3D Vector Search (Krep AI){COLOR_RESET}
+
+{COLOR_CYAN}Usage:{COLOR_RESET}
+  krep [OPTIONS] PATTERN [FILE...]
+  cat file.txt | krep [OPTIONS] PATTERN
+  krep --learn PATH...           Build a local LSA model for PATHs.
+  krep --list-models             List built models.
+  krep --purge-models            Delete all built models.
+
+{COLOR_CYAN}Options:{COLOR_RESET}
+  -n                  : Print line numbers (default).
+  -r, -R              : Search recursively in directories.
+  -l, --limit         : Max visual matches to display (default: 5).
+  --learn             : Build PPMI+SVD semantic model for given PATH(s).
+  --update-learn      : Tail-aware incremental update (only new lines).
+  --auto-refresh I    : Set auto-refresh interval (e.g. 1h, 30m, 1d, 0=off).
+                        On query, if model is older than I, a background
+                        --update-learn is fired (lazy refresh, no daemon).
+  --no-model          : Bypass any pre-built model; use keyword fallback.
+  --no-rg             : Disable ripgrep streaming; use Python walker only.
+  --list-models       : Show all cached models with age and freshness.
+  --purge-models      : Delete all cached models.
+  -h, --help          : Show this help guide.
+
+{COLOR_CYAN}Performance:{COLOR_RESET}
+  When ripgrep is installed, krep uses a streaming prefilter that's
+  150-3000x faster than the legacy walker on large repositories.
+  Falls back automatically when rg is missing or for stdin input.
+
+{COLOR_CYAN}Examples:{COLOR_RESET}
+  krep --learn /var/log/ --auto-refresh 1h
+  krep "auth failure" /var/log/         # auto-uses model + rg if both ready
+  krep --update-learn /var/log/         # manual tail-only update
+  krep --list-models
+""")
+                return 0
+            elif arg == '--learn':
+                learn_mode = True
+            elif arg == '--update-learn':
+                update_learn = True
+            elif arg == '--no-model':
+                no_model = True
+            elif arg == '--list-models':
+                list_models = True
+            elif arg == '--purge-models':
+                purge_models = True
+            elif arg == '--auto-refresh' or arg.startswith('--auto-refresh='):
+                # Hem '--auto-refresh 1h' hem '--auto-refresh=1h' formatı
+                if arg.startswith('--auto-refresh='):
+                    val = arg.split('=', 1)[1]
+                elif i + 1 < len(args):
+                    i += 1
+                    val = args[i]
+                else:
+                    print(f"{COLOR_RED}krep: --auto-refresh requires INTERVAL "
+                          f"(e.g. 1h, 30m, 1d, 0=off){COLOR_RESET}")
+                    return 1
+                try:
+                    from kishi import krep_learn as _kl
+                    auto_refresh = _kl.parse_interval(val)
+                except (ImportError, ValueError) as e:
+                    print(f"{COLOR_RED}krep: invalid interval '{val}': {e}{COLOR_RESET}")
+                    return 1
+            elif arg in ('-l', '--limit'):
+                if i + 1 < len(args):
+                    i += 1
+                    try:
+                        limit = int(args[i])
+                    except ValueError:
+                        print(f"{COLOR_RED}krep: Invalid limit value: {args[i]}{COLOR_RESET}")
+                        return 1
+                else:
+                    print(f"{COLOR_RED}krep: Option -l/--limit requires an argument{COLOR_RESET}")
+                    return 1
+            else:
+                for char in arg[1:]:
+                    if char == 'n': line_number = True
+                    elif char in ('r', 'R'): recursive = True
+                    else:
+                        print(f"{COLOR_RED}krep: Invalid option -{char}{COLOR_RESET}")
+                        return 1
+        else:
+            if pattern is None:
+                pattern = arg
+            else:
+                paths.append(arg)
+        i += 1
+
+    # --list-models / --purge-models / --learn early-exit
+    if list_models:
+        try:
+            from kishi import krep_learn
+        except ImportError:
+            print(f"{COLOR_RED}krep --list-models requires numpy/scipy.\n"
+                  f"  Install: pip install kishi-shell[krep]\n"
+                  f"  Arch:    sudo pacman -S python-numpy python-scipy"
+                  f"{COLOR_RESET}")
+            return 1
+        models = krep_learn.list_models()
+        if not models:
+            print(f"{COLOR_AMBER}No cached models. Build one with `krep --learn PATH`.{COLOR_RESET}")
+            return 0
+        import time as _time
+        for m in models:
+            age = _time.time() - m['build_time']
+            ar = int(m.get('auto_refresh_seconds', 0))
+            ar_label = (f"auto-refresh {krep_learn.format_age(ar)}"
+                        if ar > 0 else "auto-refresh off")
+            stale = ar > 0 and age > ar
+            stale_mark = (f"{COLOR_RED}STALE{COLOR_RESET}"
+                          if stale else f"{COLOR_GREEN}FRESH{COLOR_RESET}")
+            print(f"{COLOR_CYAN}{m['dir']}{COLOR_RESET}")
+            print(f"  size: {m['size_kb']:.1f} KB · vocab: {m['n_terms']} · "
+                  f"lines: {m['n_lines']}")
+            print(f"  age: {krep_learn.format_age(age)} ago · {ar_label} · "
+                  f"{stale_mark}")
+            print(f"  sources: {', '.join(m['source_paths'])}")
+            for i_ax, lab in enumerate(m['axis_labels']):
+                print(f"  axis {i_ax}: {lab}")
+        return 0
+
+    if purge_models:
+        try:
+            from kishi import krep_learn
+        except ImportError:
+            print(f"{COLOR_RED}krep --purge-models requires numpy/scipy.\n"
+                  f"  Install: pip install kishi-shell[krep]"
+                  f"{COLOR_RESET}")
+            return 1
+        n = krep_learn.purge_models()
+        print(f"{COLOR_GREEN}[+] Purged {n} model(s).{COLOR_RESET}")
+        return 0
+
+    if learn_mode or update_learn:
+        try:
+            from kishi import krep_learn
+        except ImportError:
+            print(f"{COLOR_RED}krep --learn requires numpy and scipy.\n"
+                  f"  Install: pip install kishi-shell[krep]\n"
+                  f"  Arch:    sudo pacman -S python-numpy python-scipy\n"
+                  f"  (Keyword engine works without these — try `krep PATTERN PATH`)"
+                  f"{COLOR_RESET}")
+            return 1
+        if not krep_learn.LEARN_AVAILABLE:
+            print(f"{COLOR_RED}krep --learn: numpy/scipy import failed.\n"
+                  f"  Run: pip install kishi-shell[krep]"
+                  f"{COLOR_RESET}")
+            return 1
+        # --learn / --update-learn: pattern ilk path; paths geri kalanlar
+        targets = ([pattern] if pattern else []) + paths
+        if not targets:
+            print(f"{COLOR_RED}krep --learn: en az bir PATH gerekli.{COLOR_RESET}")
+            return 1
+        try:
+            if update_learn:
+                # Mevcut modeli yükle + tail-aware update
+                existing = krep_learn.find_model_for(targets, with_state=True)
+                if existing is None:
+                    print(f"{COLOR_AMBER}krep --update-learn: bu paths için "
+                          f"model bulunamadı. Önce --learn ile build edin.{COLOR_RESET}")
+                    return 1
+                # auto_refresh user override
+                if auto_refresh is not None:
+                    existing["auto_refresh_seconds"] = auto_refresh
+                model = krep_learn.update_model(existing, targets, verbose=True)
+            else:
+                # Full build
+                refresh_val = 0 if auto_refresh is None else auto_refresh
+                model = krep_learn.build_model(
+                    targets, verbose=True,
+                    auto_refresh_seconds=refresh_val,
+                )
+            saved = krep_learn.save_model(model)
+            mode_label = "updated" if update_learn else "built"
+            ar = model.get("auto_refresh_seconds", 0)
+            ar_label = f"auto-refresh {krep_learn.format_age(ar)}" if ar > 0 else "auto-refresh off"
+            print(f"{COLOR_GREEN}[+] Model {mode_label}: {saved}{COLOR_RESET}")
+            print(f"    {model['n_terms']} terms, {model['n_lines']} lines, "
+                  f"{model['elapsed_s']:.1f}s · {ar_label}")
+            return 0
+        except RuntimeError as e:
+            print(f"{COLOR_RED}krep --learn failed: {e}{COLOR_RESET}")
+            return 1
+
+    if pattern is None:
+        print(f"{COLOR_RED}krep: Pattern (Query) is required. Type 'krep --help' for details.{COLOR_RESET}")
+        return 1
+
+    # --no-model ve/veya --no-rg: ikisini de destekle (birleştirilmiş)
+    if no_model or no_rg:
+        import kishi.krep as _krep_mod
+        _saved_learn = _krep_mod.LEARN_AVAILABLE
+        _saved_rg = _krep_mod._HAS_RG
+        if no_model:
+            _krep_mod.LEARN_AVAILABLE = False
+        if no_rg:
+            _krep_mod._HAS_RG = False
+        try:
+            return krep_search(pattern, paths, line_number=line_number,
+                               recursive=recursive, limit=limit)
+        finally:
+            _krep_mod.LEARN_AVAILABLE = _saved_learn
+            _krep_mod._HAS_RG = _saved_rg
+
+    return krep_search(pattern, paths, line_number=line_number, recursive=recursive, limit=limit)
 
 BUILTINS_DICT = {
     "[": kishi_test,
@@ -757,5 +994,6 @@ BUILTINS_DICT = {
     "plugin": kishi_plugin,
     "neofetch": kishi_neofetch,
     "fetch": kishi_neofetch,
+    "krep": kishi_krep,
     "q": kishi_exit,
 }

@@ -12,7 +12,7 @@ from kishi import state
 from kishi.builtins import (
     kishi_cd, kishi_pwd, kishi_export, kishi_unset, kishi_test,
     kishi_help, kishi_deactivate, kishi_plugin, kishi_neofetch,
-    BUILTINS_DICT,
+    kishi_krep, BUILTINS_DICT,
 )
 
 
@@ -426,6 +426,67 @@ class TestHelp:
 
 
 # ---------------------------------------------------------------------------
+# krep
+# ---------------------------------------------------------------------------
+
+class TestKrep:
+    def test_krep_help(self, capsys):
+        """krep --help should return 0 and show help text."""
+        result = kishi_krep(["krep", "--help"])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "Usage:" in captured.out
+
+    def test_krep_missing_pattern(self, capsys):
+        """krep without args should show error and return 1."""
+        result = kishi_krep(["krep"])
+        assert result == 1
+        captured = capsys.readouterr()
+        assert "Pattern (Query) is required" in captured.out
+
+    def test_krep_match_file(self, tmp_path, capsys):
+        """krep should semantically match occurrences in a file."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("unrelated message\nlogin authorization required\n")
+
+        result = kishi_krep(["krep", "auth", str(test_file)])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "login authorization" in captured.out
+        assert "KREP AI" in captured.out
+
+    def test_krep_case_insensitive_by_default(self, tmp_path, capsys):
+        """krep should perform case-insensitive match by default."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("LOGIN AUTHORIZATION REQUIRED\n")
+
+        result = kishi_krep(["krep", "auth", str(test_file)])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "LOGIN AUTHORIZATION" in captured.out
+
+    def test_krep_limit_option(self, tmp_path, capsys):
+        """krep should honor the --limit option."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("database save\ndatabase update\ndatabase delete\ndatabase insert\n")
+
+        result = kishi_krep(["krep", "-l", "2", "database", str(test_file)])
+        assert result == 0
+        captured = capsys.readouterr()
+        assert "1." in captured.out
+        assert "2." in captured.out
+        assert "3." not in captured.out
+
+    def test_krep_no_match(self, tmp_path):
+        """krep should return 1 when no match is found."""
+        test_file = tmp_path / "test.txt"
+        test_file.write_text("hello world\n")
+
+        result = kishi_krep(["krep", "database", str(test_file)])
+        assert result == 1
+
+
+# ---------------------------------------------------------------------------
 # BUILTINS_DICT completeness
 # ---------------------------------------------------------------------------
 
@@ -434,7 +495,7 @@ class TestBuiltinsDict:
         "cd", "pwd", "exit", "q", "clear", "history", "h", "help",
         "jobs", "fg", "bg", "export", "unset", "source", ".",
         "test", "[", "setup", "plugin", "neofetch", "fetch",
-        "deactivate",
+        "deactivate", "krep",
     ]
 
     def test_all_expected_commands_registered(self):
@@ -448,3 +509,31 @@ class TestBuiltinsDict:
             if fn is None:
                 continue  # dashboard/explore may be None if import fails
             assert callable(fn), f"'{name}' is not callable"
+
+
+class TestKrepNoRgFlag:
+    def test_no_rg_flag_disables_streaming(self, tmp_path, capsys):
+        """krep --no-rg fallback yolunu zorlar (debug/test için)."""
+        log = tmp_path / "log.txt"
+        log.write_text("auth login event\n")
+        from kishi.builtins import kishi_krep
+        import kishi.krep as krep_mod
+
+        original = krep_mod._HAS_RG
+        try:
+            rc = kishi_krep(["krep", "--no-rg", "auth", str(log)])
+            assert rc == 0
+            captured = capsys.readouterr()
+            assert "auth login event" in captured.out
+            # Test sırasında _HAS_RG False'a setlenmeli; geri yüklenmeli.
+            assert krep_mod._HAS_RG == original, "flag _HAS_RG'yi kalıcı bozmamalı"
+        finally:
+            krep_mod._HAS_RG = original
+
+    def test_no_rg_flag_in_help(self, capsys):
+        """--help çıktısında --no-rg dokümante olmalı."""
+        from kishi.builtins import kishi_krep
+        rc = kishi_krep(["krep", "--help"])
+        assert rc == 0
+        captured = capsys.readouterr()
+        assert "--no-rg" in captured.out

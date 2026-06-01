@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.0.8)
+#  Kishi Shell (v2.0.2.0)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
@@ -26,8 +26,13 @@ The installer will try `pip3 install .` first. If your system uses PEP 668 prote
 
 ### Option 3: Install via pip (PyPI)
 ```bash
-pip install --upgrade kishi-shell
+pip install --upgrade kishi-shell           # Core shell only (~30 KB)
+pip install --upgrade "kishi-shell[krep]"   # + numpy/scipy for Krep AI's LSA model
 ```
+
+The base install gives you the full Kishi Shell + the keyword-based `krep`
+engine. The `[krep]` optional extra adds `numpy + scipy` for the dictionary-free
+LSA model (`krep --learn PATH` and friends). Most shell users never need this.
 
 Type `kishi` in your terminal to launch Kishi Shell. Type `exit` to return to your default shell.
 
@@ -288,6 +293,153 @@ Input → Lexer → Parser → Expander → Executor
 | `tui_fuzzy.py` | Ctrl+R fuzzy search engine |
 | `ui.py` | Syntax highlighting, completions, keybindings |
 | `main.py` | Login shell, mode detection, profile sourcing |
+| `krep.py` | 3D semantic vector search engine |
+| `krep_learn.py` | PPMI + SVD model: dictionary-free corpus learning |
+| `krep_core.pyx` | Cython acceleration for vectorize / cosine |
+| `krep_cli.py` | Standalone `krep` CLI entry point |
+
+---
+
+##  Krep AI — Semantic Search (v2.0.2.0+)
+
+Krep is a **3D semantic vector search** tool. Unlike `grep`, it understands
+**meaning**: searching `"auth login"` also surfaces lines containing
+`"password validated"`, `"token issued"`, or `"yetkilendirme reddedildi"`.
+
+Krep ships as **both** an embedded Kishi builtin **and** a standalone CLI.
+`pip install kishi-shell` adds two binaries to your PATH: `kishi` and `krep`.
+
+```bash
+# From any shell (bash, zsh, fish):
+$ krep "auth login" /var/log/
+$ krep --learn /var/log/ --auto-refresh 1h
+$ cat app.log | krep error
+
+# From inside Kishi REPL:
+Kishi$ -> krep "auth login" /var/log/
+```
+
+### Two engines, automatic dispatch
+
+1. **Keyword engine (default, zero-setup):** built-in 178-word vocabulary
+   across 3 axes — Error / Security / Data. Works out of the box.
+2. **LSA model (`krep --learn PATH`):** PPMI + SVD trained on your corpus.
+   Vocabulary, axes, and word vectors are learned from the actual files —
+   no manual dictionary. Multilingual by construction. **Requires the
+   optional extra:** `pip install kishi-shell[krep]` (adds numpy + scipy).
+
+When you run `krep --learn /var/log/`, Krep:
+- Scans every non-binary file, tokenizes (Unicode-aware)
+- Builds a sparse cooccurrence matrix
+- Normalizes with PPMI (Positive Pointwise Mutual Information)
+- Computes SVD rank-50 word embeddings (HD for cosine ranking)
+- Reduces to PCA-3 (only for the ASCII scatter visualization)
+- Auto-labels each axis from its top-5 representative terms
+- Saves to `~/.cache/kishi/krep_models/<path-hash>/`
+
+```bash
+$ krep --learn /var/log/ --auto-refresh 1h
+[krep --learn] Vocab: 12,438 terms, 891,234 lines
+[krep --learn] SVD rank-50 + PCA-3 (var=17.3%), 2.1s
+[krep --learn] Axis 0: error fail timeout exception denied
+[krep --learn] Axis 1: auth login user session token
+[krep --learn] Axis 2: file query select read write
+[+] Model saved: ~/.cache/kishi/krep_models/var_log_a8f3.../
+    12438 terms, 891234 lines, 2.1s · auto-refresh 1h
+```
+
+### Tail-aware incremental updates
+
+Log files are append-only. Krep tracks each file's last-read byte offset,
+mtime, and size. When you run `krep --update-learn`, only **new lines**
+are processed:
+
+```bash
+$ krep --update-learn /var/log/        # tail-only, ~%5 of full build time
+$ krep --list-models                   # see what's cached
+$ krep --purge-models                  # wipe everything
+```
+
+Rotation/truncate is detected automatically: if a file's size shrinks,
+it's re-read from the beginning.
+
+### Lazy auto-refresh (no daemon, no cron)
+
+`--auto-refresh INTERVAL` writes a freshness threshold into the model.
+On every query, if the model is older than the threshold, Krep fires a
+**background subprocess** to refresh it (fire-and-forget). The current
+query keeps running with the old model; the next query sees the new one.
+
+```bash
+$ krep --learn /var/log/ --auto-refresh 1h
+$ krep "auth failure" /var/log/         # 5 hours later
+  # ↓ Lazy refresh triggered in background
+  # ↓ This query uses the old model (still fast)
+$ krep "auth failure" /var/log/         # 3 seconds later
+  # ↓ New model loaded automatically (cache mtime-invalidated)
+```
+
+Intervals are human-readable: `1h`, `30m`, `1d`, `2w`, `45s`, or `0` to disable.
+
+### When ripgrep is installed: 200-3000× speedup
+
+If `rg` (ripgrep) is on your PATH, Krep automatically uses it as a
+**streaming prefilter**: only matching lines are vectorized, the rest is
+skipped. Early-termination after `limit × 10` matches. Falls back to the
+built-in Python walker when:
+- `rg` not installed,
+- stdin pipe mode,
+- `rg` returns 0 hits (semantic neighbor lookup needs the walker).
+
+```bash
+$ krep --no-rg "auth login" /var/log/   # force pure-Python engine
+```
+
+Verified benchmarks (3-run averages, 12-core x86_64):
+
+| Corpus | Query | Walker | rg-streaming | Speedup |
+|--------|-------|-------:|-------------:|--------:|
+| Kishi repo (~5k lines)      | `auth login`     | 1068 ms | **5 ms** | 206× |
+| Python stdlib (~6.8M lines) | `auth login`     | timeout | **11 ms** | >5000× |
+| Python stdlib               | `database query` | timeout | **14 ms** | >4000× |
+| 1 GB single file (17M lines)| `auth login`     | timeout | **6 ms**  | >10000× |
+
+---
+
+##  Krep Performance (v2.0.1.1+)
+
+Krep AI uses a two-path search architecture for the `krep` builtin:
+
+1. **ripgrep-streaming (default when `rg` is installed):**
+   - Builds a word-only regex from the query (`auth login` → `auth|login`).
+   - Runs `rg -i -n --max-count=20` as a streaming subprocess.
+   - Reads stdout line by line, vectorizes each match, computes cosine similarity.
+   - Terminates `rg` early when `limit × 10` matches are collected.
+   - **Result: 100-3000x faster than the sequential walker.**
+
+2. **Built-in Python walker (semantic fallback):** mtime-keyed in-memory
+   concept-vector cache + line-level bigram vectorization. Used when:
+   - ripgrep isn't installed,
+   - stdin is the input,
+   - rg's literal pass returned 0 matches but the user's query has a
+     semantic neighbour in the corpus (e.g. `login authorization` →
+     matches `auth token expired`).
+
+Override:
+```bash
+krep --no-rg PATTERN PATH    # Force the Python fallback (debug/test)
+```
+
+Verified benchmarks (3-run averages, 12-core x86_64, Python 3.14, ripgrep 15.1):
+| Corpus | Query | Walker | rg-streaming | Speedup |
+|--------|-------|-------:|-------------:|--------:|
+| Kishi repo (~5k lines)   | `auth login`     | 1068 ms | **5 ms** | 206x |
+| Kishi repo               | `error timeout`  | 1103 ms | **7 ms** | 156x |
+| Kishi repo               | `database query` | 1071 ms | **5 ms** | 210x |
+| Tests dir (~3k lines)    | `auth login`     | 1053 ms | **6 ms** | 171x |
+| Python stdlib (~6.8M lines) | `auth login`  | timeout (>60 s) | **11 ms** | >5000x |
+| Python stdlib            | `error timeout`  | timeout | **9 ms** | >6000x |
+| Python stdlib            | `database query` | timeout | **14 ms** | >4000x |
 
 ---
 

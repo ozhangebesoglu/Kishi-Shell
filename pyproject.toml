@@ -1,10 +1,10 @@
 [build-system]
-requires = ["setuptools>=61.0"]
+requires = ["setuptools>=61.0", "Cython"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "kishi-shell"
-version = "2.0.0.8"
+version = "2.0.2.0"
 description = "A powerful, highly modular, Python-based modern shell."
 readme = "README.md"
 license = "GPL-3.0-only"
@@ -22,6 +22,15 @@ dependencies = [
     "psutil>=5.0.0",
 ]
 
+[project.optional-dependencies]
+# Krep AI'ın LSA modeli (--learn, --update-learn, --auto-refresh) için.
+# Keyword tabanlı krep çekirdek arama bu paketler olmadan da çalışır.
+# Kurulum: pip install kishi-shell[krep]
+krep = [
+    "numpy>=1.20",
+    "scipy>=1.7",
+]
+
 [project.urls]
 Homepage = "https://github.com/ozhangebesoglu/Kishi-Shell"
 Repository = "https://github.com/ozhangebesoglu/Kishi-Shell"
@@ -29,6 +38,7 @@ Issues = "https://github.com/ozhangebesoglu/Kishi-Shell/issues"
 
 [project.scripts]
 kishi = "kishi.main:main"
+krep  = "kishi.krep_cli:main"
 
 [tool.setuptools.packages.find]
 include = ["kishi*"]
