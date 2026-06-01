@@ -84,9 +84,10 @@ musllinux-x86_64-image = "musllinux_1_2"
 # isolation'da net olsun diye)
 before-build = "pip install Cython"
 
-# macOS: hem Intel hem Apple Silicon
+# macOS: yalnızca Apple Silicon (arm64). Intel Mac kullanıcıları (%10-15)
+# sdist'ten kurar — Xcode CLT'leri zaten var, ~15 saniye.
 [tool.cibuildwheel.macos]
-archs = ["x86_64", "arm64"]
+archs = ["arm64"]
 
 # Windows: 64-bit
 [tool.cibuildwheel.windows]

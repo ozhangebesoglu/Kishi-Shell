@@ -38,8 +38,15 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, windows-latest, macos-13, macos-14]
-        # macos-13 = Intel, macos-14 = Apple Silicon (M1)
+        # Wheel matrisi — sadece güncel, yaygın platformlar:
+        # - ubuntu-latest:  Linux x86_64 (manylinux + musllinux)
+        # - windows-latest: Windows AMD64 (MSVC ile pre-built)
+        # - macos-15:       macOS Apple Silicon (arm64) — Apple 2020+ tüm Mac'ler
+        # Atlanmış:
+        # - macos-13/14: retired/deprecated (Dec 2025 / Nov 2025)
+        # - macos Intel:  %10-15 kullanıcı, Xcode CLT'leri var, sdist+gcc ile ~15 sn
+        # - aarch64 Linux: QEMU build 5+ saat, sdist+gcc ile ~15 sn
+        os: [ubuntu-latest, windows-latest, macos-15]
     steps:
       - uses: actions/checkout@v4
 
