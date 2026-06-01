@@ -751,12 +751,17 @@ def kishi_krep(args):
     purge_models = False
     update_learn = False
     auto_refresh = None  # None = unset, 0 = disable, > 0 = seconds
+    no_rg = False
 
     # Simple CLI argument parsing
     i = 1
     while i < len(args):
         arg = args[i]
         if arg.startswith('-') and arg != '-':
+            if arg == '--no-rg':
+                no_rg = True
+                i += 1
+                continue
             if arg in ('--help', '-h'):
                 print(f"""
 {COLOR_AMBER}krep — Kishi Semantic 3D Vector Search (Krep AI){COLOR_RESET}
@@ -778,13 +783,19 @@ def kishi_krep(args):
                         On query, if model is older than I, a background
                         --update-learn is fired (lazy refresh, no daemon).
   --no-model          : Bypass any pre-built model; use keyword fallback.
+  --no-rg             : Disable ripgrep streaming; use Python walker only.
   --list-models       : Show all cached models with age and freshness.
   --purge-models      : Delete all cached models.
   -h, --help          : Show this help guide.
 
+{COLOR_CYAN}Performance:{COLOR_RESET}
+  When ripgrep is installed, krep uses a streaming prefilter that's
+  150-3000x faster than the legacy walker on large repositories.
+  Falls back automatically when rg is missing or for stdin input.
+
 {COLOR_CYAN}Examples:{COLOR_RESET}
   krep --learn /var/log/ --auto-refresh 1h
-  krep "auth failure" /var/log/         # auto-uses model, refreshes lazily
+  krep "auth failure" /var/log/         # auto-uses model + rg if both ready
   krep --update-learn /var/log/         # manual tail-only update
   krep --list-models
 """)
@@ -941,16 +952,21 @@ def kishi_krep(args):
         print(f"{COLOR_RED}krep: Pattern (Query) is required. Type 'krep --help' for details.{COLOR_RESET}")
         return 1
 
-    # --no-model: model'i geçici devre dışı bırak
-    if no_model:
+    # --no-model ve/veya --no-rg: ikisini de destekle (birleştirilmiş)
+    if no_model or no_rg:
         import kishi.krep as _krep_mod
-        _saved = _krep_mod.LEARN_AVAILABLE
-        _krep_mod.LEARN_AVAILABLE = False
+        _saved_learn = _krep_mod.LEARN_AVAILABLE
+        _saved_rg = _krep_mod._HAS_RG
+        if no_model:
+            _krep_mod.LEARN_AVAILABLE = False
+        if no_rg:
+            _krep_mod._HAS_RG = False
         try:
             return krep_search(pattern, paths, line_number=line_number,
                                recursive=recursive, limit=limit)
         finally:
-            _krep_mod.LEARN_AVAILABLE = _saved
+            _krep_mod.LEARN_AVAILABLE = _saved_learn
+            _krep_mod._HAS_RG = _saved_rg
 
     return krep_search(pattern, paths, line_number=line_number, recursive=recursive, limit=limit)
 

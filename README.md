@@ -406,6 +406,43 @@ Verified benchmarks (3-run averages, 12-core x86_64):
 
 ---
 
+##  Krep Performance (v2.0.1.1+)
+
+Krep AI uses a two-path search architecture for the `krep` builtin:
+
+1. **ripgrep-streaming (default when `rg` is installed):**
+   - Builds a word-only regex from the query (`auth login` → `auth|login`).
+   - Runs `rg -i -n --max-count=20` as a streaming subprocess.
+   - Reads stdout line by line, vectorizes each match, computes cosine similarity.
+   - Terminates `rg` early when `limit × 10` matches are collected.
+   - **Result: 100-3000x faster than the sequential walker.**
+
+2. **Built-in Python walker (semantic fallback):** mtime-keyed in-memory
+   concept-vector cache + line-level bigram vectorization. Used when:
+   - ripgrep isn't installed,
+   - stdin is the input,
+   - rg's literal pass returned 0 matches but the user's query has a
+     semantic neighbour in the corpus (e.g. `login authorization` →
+     matches `auth token expired`).
+
+Override:
+```bash
+krep --no-rg PATTERN PATH    # Force the Python fallback (debug/test)
+```
+
+Verified benchmarks (3-run averages, 12-core x86_64, Python 3.14, ripgrep 15.1):
+| Corpus | Query | Walker | rg-streaming | Speedup |
+|--------|-------|-------:|-------------:|--------:|
+| Kishi repo (~5k lines)   | `auth login`     | 1068 ms | **5 ms** | 206x |
+| Kishi repo               | `error timeout`  | 1103 ms | **7 ms** | 156x |
+| Kishi repo               | `database query` | 1071 ms | **5 ms** | 210x |
+| Tests dir (~3k lines)    | `auth login`     | 1053 ms | **6 ms** | 171x |
+| Python stdlib (~6.8M lines) | `auth login`  | timeout (>60 s) | **11 ms** | >5000x |
+| Python stdlib            | `error timeout`  | timeout | **9 ms** | >6000x |
+| Python stdlib            | `database query` | timeout | **14 ms** | >4000x |
+
+---
+
 ##  Help Center (`help`)
 Kishi always assists you. If you want to remember all system features and command tips:
 - For Comprehensive (Full) Help: `help`

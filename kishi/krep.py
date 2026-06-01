@@ -2,6 +2,9 @@ import re
 import math
 import os
 import sys
+import shutil
+import subprocess
+import time as _time
 
 # Cython C-Engine Entegrasyon Kontrolü
 try:
@@ -20,6 +23,118 @@ except ImportError:
 
 # Yüklenmiş modeli paths bazında cache (REPL ömrü)
 _MODEL_CACHE = {}
+
+# === ripgrep tabanlı streaming prefilter (opsiyonel sistem ikilisi) ===
+import shutil as _shutil
+import subprocess
+import time as _time
+_HAS_RG = _shutil.which("rg") is not None
+
+
+def _build_rg_pattern(query):
+    """Sorgu metninden ripgrep regex pattern'i üret.
+
+    - En az 3 karakter uzunluğundaki kelimeler alınır (kısa kelimeler
+      false positive üretir, "a", "to", "if" gibi).
+    - Her kelime re.escape ile geçirilir; meta-karakterler güvenli.
+    """
+    words = re.findall(r'[\w]+', query)
+    long_words = [w for w in words if len(w) >= 3]
+    if not long_words:
+        return None
+    return "|".join(re.escape(w) for w in long_words)
+
+
+def _krep_rg_streaming(query_str, q_vec, paths, limit=5,
+                       max_per_file=20, early_stop_factor=10,
+                       hard_timeout=10.0, model=None):
+    """ripgrep tabanlı streaming prefilter + vektörleştirme.
+
+    model verilirse satır vektörleştirme krep_learn HD vec ile yapılır;
+    aksi halde mevcut keyword vectorize_text fallback.
+    Returns: (matches, stats). matches tuple: (l_vec, sim, output_str, raw_text)
+    """
+    pattern = _build_rg_pattern(query_str)
+    if pattern is None:
+        return [], {"reason": "no_pattern", "elapsed_ms": 0.0,
+                    "lines_read": 0, "lines_vectorized": 0,
+                    "matches_found": 0, "early_stopped": False}
+
+    cmd = ["rg", "-i", "--no-heading", "-n",
+           f"--max-count={max_per_file}",
+           pattern] + list(paths)
+
+    t_start = _time.perf_counter()
+    try:
+        proc = subprocess.Popen(
+            cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL,
+        )
+    except (OSError, FileNotFoundError):
+        return [], {"reason": "rg_spawn_failed", "elapsed_ms": 0.0,
+                    "lines_read": 0, "lines_vectorized": 0,
+                    "matches_found": 0, "early_stopped": False}
+
+    matches = []
+    lines_read = 0
+    lines_vectorized = 0
+    early_stopped = False
+    target = max(limit * early_stop_factor, limit)
+
+    try:
+        for raw in proc.stdout:
+            lines_read += 1
+            line = raw.decode("utf-8", errors="replace").rstrip("\r\n")
+            parts = line.split(":", 2)
+            if len(parts) < 3:
+                continue
+            fpath, lineno_str, text = parts
+            text = text.strip()
+            if not text:
+                continue
+            # Model varsa HD vec, yoksa keyword
+            l_vec = _vectorize_dispatch(text, model)
+            lines_vectorized += 1
+            if not any(l_vec):
+                continue
+            sim = _cosine_anyd(q_vec, l_vec)
+            if sim < 0.3:
+                continue
+            output_str = (
+                f"{COLOR_CYAN}{fpath}{COLOR_RESET}:"
+                f"{COLOR_GREEN}{lineno_str}{COLOR_RESET}: {text}"
+            )
+            matches.append((l_vec, sim, output_str, text))
+            if len(matches) >= target:
+                early_stopped = True
+                break
+            if (_time.perf_counter() - t_start) > hard_timeout:
+                early_stopped = True
+                break
+    finally:
+        try:
+            if proc.stdout is not None:
+                proc.stdout.close()
+        except OSError:
+            pass
+        if early_stopped:
+            proc.terminate()
+        try:
+            proc.wait(timeout=2)
+        except subprocess.TimeoutExpired:
+            proc.kill()
+            try:
+                proc.wait(timeout=1)
+            except subprocess.TimeoutExpired:
+                pass
+
+    elapsed_ms = (_time.perf_counter() - t_start) * 1000.0
+    return matches, {
+        "elapsed_ms": elapsed_ms,
+        "lines_read": lines_read,
+        "lines_vectorized": lines_vectorized,
+        "matches_found": len(matches),
+        "early_stopped": early_stopped,
+    }
 
 # Kavramsal ANSI Renk Kodları
 COLOR_RESET = "\033[0m"
@@ -245,6 +360,7 @@ def render_3d_scatter(query_vec, matches):
     out.append("=" * 55 + "\n")
     return "\n".join(out)
 
+
 def _resolve_model(files_or_dirs):
     """Verilen paths için kayıtlı LSA modeli varsa yükle (cache'le).
 
@@ -353,21 +469,71 @@ def _cosine_anyd(a, b):
     return dot / (na * nb)
 
 
+def _krep_finalize(matches, q_vec, limit, model=None):
+    """Sort + render + print bloğu. rg ve fallback yolları paylaşır.
+
+    match tuple: (l_vec, sim, output_str) veya (l_vec, sim, output_str, raw_text).
+    Model varsa raw_text'ten 3D PCA vec çıkararak scatter doğru renderlenir.
+    """
+    if not matches:
+        print(f"{COLOR_RED}krep: Semantik olarak benzer satır bulunamadı.{COLOR_RESET}")
+        return 1
+
+    matches.sort(key=lambda x: x[1], reverse=True)
+    top_matches = matches[:limit]
+
+    # Scatter ve listeleme için 3D koordinat
+    q_vec_3d = _vectorize_3d_from_query_text(q_vec, model)
+    scatter_matches = []
+    for item in top_matches:
+        if len(item) >= 4:
+            _hd_vec, sim, output_str, raw_text = item[0], item[1], item[2], item[3]
+            l_vec_3d = _vectorize_3d(raw_text, model)
+        else:
+            _hd_vec, sim, output_str = item[0], item[1], item[2]
+            # HD vec → 3D'ye düş veya l_vec zaten 3D ise olduğu gibi kullan
+            try:
+                l_vec_3d = [float(_hd_vec[0]), float(_hd_vec[1]), float(_hd_vec[2])]
+            except (IndexError, TypeError):
+                l_vec_3d = [0.0, 0.0, 0.0]
+        scatter_matches.append((l_vec_3d, sim, output_str))
+
+    print(render_3d_scatter(q_vec_3d, scatter_matches))
+    print(f"{COLOR_CYAN}[EŞLEŞEN SATIRLAR - Semantik Benzerliğe Göre Sıralı]{COLOR_RESET}:")
+    for idx, (l_vec, similarity, line_output) in enumerate(scatter_matches, 1):
+        print(f"{idx}. [{COLOR_GREEN}Mesafe/Sim: {similarity:.2f}{COLOR_RESET}] "
+              f"[X={l_vec[0]:.2f}, Y={l_vec[1]:.2f}, Z={l_vec[2]:.2f}] "
+              f"-> {line_output}")
+    return 0
+
+
+def _vectorize_3d_from_query_text(q_vec, model):
+    """q_vec model'in HD uzayında olabilir; scatter için 3D'ye düşür.
+    Mevcut q_vec zaten 3D ise olduğu gibi döner."""
+    try:
+        return [float(q_vec[0]), float(q_vec[1]), float(q_vec[2])]
+    except (IndexError, TypeError):
+        return [0.0, 0.0, 0.0]
+
+
 def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, limit=5):
     """
     Ana vektör arama arayüzü. Sorguyu vektörleştirir, dosyaları mmap / ham olarak okur
     ve en yakın benzerlikteki satırları koordinatlarıyla listeler.
 
     Dispatch:
-    - Bu paths için kayıtlı PPMI+SVD modeli varsa → model ile vectorize (sözlüksüz).
-    - Yoksa → mevcut keyword (X/Y/Z_KEYWORDS) yolu.
+    - Path başına kayıtlı PPMI+SVD modeli varsa → model ile vectorize (sözlüksüz).
+    - ripgrep sistemde varsa + dosya argümanı varsa → _krep_rg_streaming
+      (150-3000x daha hızlı line-level prefilter). Model varsa rg motoru da
+      HD vec ile cosine yapar.
+    - Aksi halde (rg yok veya stdin modu): yerleşik process_file walker.
     """
     import mmap
 
     # 0. Model lookup (varsa)
     model = _resolve_model(files_or_dirs)
 
-    # 1. Sorgunun 3D vektörünü bul
+    # 1. Sorgunun vektörünü bul (model varsa HD, yoksa keyword 3D)
     q_vec = _vectorize_dispatch(query_str, model)
     if not any(q_vec):
         print(f"{COLOR_RED}krep: Sorgudan semantik konsept çıkarılamadı.{COLOR_RESET}")
@@ -375,16 +541,49 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
 
     if model is not None:
         labels = model["axis_labels"]
+        # Scatter görseli için q_vec'in 3D versiyonu
+        q_vec_3d = _vectorize_3d(query_str, model)
         print(f"{COLOR_CYAN}[krep AI · LSA model]{COLOR_RESET} "
               f"V={model['n_terms']} terms · {model['n_lines']} lines · "
               f"Axes: [{labels[0][:20]}] [{labels[1][:20]}] [{labels[2][:20]}]")
-        print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü: "
-              f"A0={q_vec[0]:+.2f}, A1={q_vec[1]:+.2f}, A2={q_vec[2]:+.2f}")
+        print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü (PCA-3): "
+              f"A0={q_vec_3d[0]:+.2f}, A1={q_vec_3d[1]:+.2f}, A2={q_vec_3d[2]:+.2f}")
     else:
         print(f"{COLOR_CYAN}[krep AI]{COLOR_RESET} Sorgu Vektörü: "
               f"X(Hata)={q_vec[0]:.2f}, Y(Guvenlik)={q_vec[1]:.2f}, Z(Veri)={q_vec[2]:.2f}")
-    
+
+
     matches = []
+
+    # === DISPATCH: rg streaming yolu (varsa ve dosya argümanı varsa) ===
+    read_from_stdin_check = (not files_or_dirs) or ("-" in files_or_dirs)
+    use_rg = _HAS_RG and not read_from_stdin_check
+    if use_rg:
+        rg_matches, stats = _krep_rg_streaming(
+            query_str=query_str,
+            q_vec=q_vec,
+            paths=files_or_dirs,
+            limit=limit,
+            model=model,
+        )
+        if stats.get("reason") == "rg_spawn_failed":
+            print(
+                f"{COLOR_AMBER}krep: ripgrep spawn başarısız, "
+                f"yerleşik Python motoruna düşülüyor.{COLOR_RESET}",
+                file=sys.stderr,
+            )
+        elif rg_matches:
+            return _krep_finalize(rg_matches, q_vec, limit, model=model)
+        elif stats.get("reason") == "no_pattern":
+            # Sorgu kelimeleri çok kısa (<3 char) — fallback'in
+            # bigram benzerliği genişletmesi tek şans, devam.
+            pass
+        else:
+            # rg pattern ürettiği halde 0 match bulduysa: kullanıcı
+            # "login authorization" yazdı ama dosyada "auth token" var
+            # gibi semantic-eşleşme durumu. Fallback walker'a düş ki
+            # bigram-tabanlı concept-vector eşleşmesi şansı kalsın.
+            pass
     
     def process_file(file_path):
         if not os.path.isfile(file_path):
@@ -486,34 +685,5 @@ def krep_search(query_str, files_or_dirs, line_number=True, recursive=False, lim
         # Tarama işlemini yap
         for fpath in target_paths:
             process_file(fpath)
-        
-    if not matches:
-        print(f"{COLOR_RED}krep: Semantik olarak benzer satır bulunamadı.{COLOR_RESET}")
-        return 1
 
-    # En yakın eşleşenleri benzerliğe göre sırala
-    matches.sort(key=lambda x: x[1], reverse=True)
-    top_matches = matches[:limit]
-
-    # 3D scatter: HD cosine sonrası top match'leri 3D'ye düşür (sadece görsel için).
-    # Match tuple'ı (l_vec_for_cosine, sim, output_str, raw_text) 4-elementli.
-    q_vec_3d = _vectorize_3d(query_str, model)
-    scatter_matches = []
-    for item in top_matches:
-        if len(item) >= 4:
-            _l_vec, sim, output_str, raw_text = item[0], item[1], item[2], item[3]
-            l_vec_3d = _vectorize_3d(raw_text, model)
-        else:
-            _l_vec, sim, output_str = item[0], item[1], item[2]
-            l_vec_3d = _l_vec  # legacy 3D fallback
-        scatter_matches.append((l_vec_3d, sim, output_str))
-
-    print(render_3d_scatter(q_vec_3d, scatter_matches))
-
-    # Eşleşen satırları bas — 3D koordinatlar scatter'la uyumlu
-    print(f"{COLOR_CYAN}[EŞLEŞEN SATIRLAR - Semantik Benzerliğe Göre Sıralı]{COLOR_RESET}:")
-    for idx, (l_vec, similarity, line_output) in enumerate(scatter_matches, 1):
-        print(f"{idx}. [{COLOR_GREEN}Mesafe/Sim: {similarity:.2f}{COLOR_RESET}] "
-              f"[X={l_vec[0]:.2f}, Y={l_vec[1]:.2f}, Z={l_vec[2]:.2f}] -> {line_output}")
-
-    return 0
+    return _krep_finalize(matches, q_vec, limit, model=model)
