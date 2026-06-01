@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.2.1)
+#  Kishi Shell (v2.0.2.2)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
@@ -300,7 +300,7 @@ Input → Lexer → Parser → Expander → Executor
 
 ---
 
-##  Krep AI — Semantic Search (v2.0.2.1+)
+##  Krep AI — Semantic Search (v2.0.2.2+)
 
 Krep is a **3D semantic vector search** tool. Unlike `grep`, it understands
 **meaning**: searching `"auth login"` also surfaces lines containing

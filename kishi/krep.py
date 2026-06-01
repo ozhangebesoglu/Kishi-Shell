@@ -13,13 +13,29 @@ try:
 except ImportError:
     CYTHON_AVAILABLE = False
 
-# Local Semantic Model (PPMI + SVD) — opsiyonel numpy bağımlılığı
-try:
-    from kishi import krep_learn
-    LEARN_AVAILABLE = krep_learn.LEARN_AVAILABLE
-except ImportError:
-    LEARN_AVAILABLE = False
-    krep_learn = None
+# Local Semantic Model (PPMI + SVD) — LAZY IMPORT
+# numpy/scipy ~1.2 sn yüklüyor; her krep çağrısında bunu ödememeliyiz.
+# krep_learn ve numpy/scipy SADECE --learn/--update-learn/model lookup
+# zamanında import edilir. Saf keyword arama numpy'siz çalışır.
+LEARN_AVAILABLE = None  # tri-state: None=henüz kontrol edilmedi, True/False=tespit edildi
+krep_learn = None
+
+
+def _try_import_krep_learn():
+    """Lazy import. İlk çağrıda numpy/scipy yüklemeyi tetikler.
+    Yüklü değilse LEARN_AVAILABLE=False olarak işaretlenir, tekrar denenmez."""
+    global LEARN_AVAILABLE, krep_learn
+    if LEARN_AVAILABLE is not None:
+        return LEARN_AVAILABLE
+    try:
+        from kishi import krep_learn as _kl
+        krep_learn = _kl
+        LEARN_AVAILABLE = bool(_kl.LEARN_AVAILABLE)
+    except ImportError:
+        LEARN_AVAILABLE = False
+        krep_learn = None
+    return LEARN_AVAILABLE
+
 
 # Yüklenmiş modeli paths bazında cache (REPL ömrü)
 _MODEL_CACHE = {}
@@ -370,15 +386,27 @@ def _resolve_model(files_or_dirs):
     Lazy refresh: stale ise background subprocess tetiklenir, bu sorgu eski
     modelle devam, sıradaki sorgu yeni modeli görür.
     """
-    if not LEARN_AVAILABLE or not files_or_dirs:
+    if not files_or_dirs:
         return None
     real_paths = [p for p in files_or_dirs if p != "-" and os.path.exists(p)]
     if not real_paths:
         return None
+
+    # OPTIMIZATION: Önce model dosyasının disk'te var olup olmadığını kontrol
+    # et — numpy/scipy YÜKLEMEDEN. Model yoksa hızlıca None dön; saf keyword
+    # arama numpy'siz devam etsin. (~1.2 sn startup kazancı.)
     paths_key = tuple(sorted(os.path.abspath(p) for p in real_paths))
-    # Model dosyasının current mtime'ı — değişirse cache invalid
-    model_dir = krep_learn.model_dir_for(list(real_paths))
-    meta_path = os.path.join(model_dir, "metadata.json")
+    _model_dir = _quick_model_dir_for(real_paths)
+    if _model_dir is None:
+        return None
+    meta_path = os.path.join(_model_dir, "metadata.json")
+    if not os.path.isfile(meta_path):
+        return None  # Model yok → numpy gerekmez
+
+    # Model dosyası var → şimdi numpy/scipy yüklemeyi göze al
+    if not _try_import_krep_learn():
+        return None
+
     try:
         model_mtime = os.path.getmtime(meta_path)
     except OSError:
@@ -393,6 +421,25 @@ def _resolve_model(files_or_dirs):
     if m is not None and krep_learn.is_stale(m):
         _trigger_background_refresh(real_paths)
     return m
+
+
+def _quick_model_dir_for(paths):
+    """krep_learn.model_dir_for'un numpy'siz versiyonu (hash hesaplaması için
+    sadece hashlib + os gerekiyor, krep_learn import etmiyor).
+
+    Bu sayede model dosyası disk'te yoksa numpy'yi hiç yüklemeyiz.
+    """
+    import hashlib
+    import re as _re
+    xdg = os.environ.get("XDG_CACHE_HOME") or os.path.join(
+        os.environ.get("HOME", "/"), ".cache"
+    )
+    cache_dir = os.path.join(xdg, "kishi", "krep_models")
+    canon = "|".join(sorted(os.path.abspath(p) for p in paths))
+    h = hashlib.blake2b(canon.encode("utf-8"), digest_size=6).hexdigest()
+    primary = os.path.basename(os.path.abspath(paths[0])) or "root"
+    safe = _re.sub(r"[^A-Za-z0-9_-]", "_", primary)[:40]
+    return os.path.join(cache_dir, f"{safe}_{h}")
 
 
 # Bir sorguda en fazla bir kez tetikle (concurrent spawn'u engelle)

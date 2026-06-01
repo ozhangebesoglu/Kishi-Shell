@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.2.1)
+#  Kishi Shell (v2.0.2.2)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
@@ -300,7 +300,7 @@ Girdi → Lexer → Parser → Expander → Executor
 
 ---
 
-##  Krep AI — Semantik Arama (v2.0.2.1+)
+##  Krep AI — Semantik Arama (v2.0.2.2+)
 
 Krep, **3D semantik vektör arama** aracıdır. `grep`'in aksine **anlamı**
 yakalar: `"auth login"` aramasında `"password validated"`, `"token issued"`
