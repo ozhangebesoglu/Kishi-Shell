@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "kishi-shell"
-version = "2.0.2.0"
+version = "2.0.2.1"
 description = "A powerful, highly modular, Python-based modern shell."
 readme = "README.md"
 license = "GPL-3.0-only"
@@ -45,3 +45,53 @@ include = ["kishi*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+
+# ─────────────────────────────────────────────────────────────────────────
+# cibuildwheel — multi-platform wheel matrix
+# ─────────────────────────────────────────────────────────────────────────
+# Her release'de Linux (manylinux + musllinux), macOS (Intel + ARM64),
+# Windows (amd64) × Python 3.9, 3.10, 3.11, 3.12, 3.13 için pre-built
+# wheel üretir. Kullanıcı 'pip install kishi-shell' yaptığında derleme
+# yapmadan ~3 saniyede kurulur.
+#
+# Build aracı: pypa/cibuildwheel GitHub Action
+# Konfig dokümantasyonu: https://cibuildwheel.pypa.io/
+[tool.cibuildwheel]
+# Test bağımlılıkları (her wheel sonrası pytest ile doğrula)
+test-requires = ["pytest"]
+test-command = "pytest {project}/tests/test_krep.py -v"
+
+# Hangi Python sürümleri için wheel üret
+# CPython 3.9-3.13 (PyPy şu an dışarıda, ileride eklenebilir)
+build = "cp39-* cp310-* cp311-* cp312-* cp313-*"
+
+# Atlanan platformlar (Krep Linux/Mac/Win odaklı)
+skip = [
+    "pp*",          # PyPy
+    "*-musllinux_i686",
+    "*-manylinux_i686",
+    "*-win32",
+]
+
+# Linux: manylinux2014 standardı (CentOS 7+ glibc 2.17 üstü her dağıtım)
+manylinux-x86_64-image = "manylinux2014"
+manylinux-aarch64-image = "manylinux2014"
+musllinux-x86_64-image = "musllinux_1_2"
+
+# Cython source dist'ten gelecek; Cython explicit dep gerekiyor
+# (pyproject [build-system].requires zaten ekledi, ama cibuildwheel
+# isolation'da net olsun diye)
+before-build = "pip install Cython"
+
+# macOS: hem Intel hem Apple Silicon
+[tool.cibuildwheel.macos]
+archs = ["x86_64", "arm64"]
+
+# Windows: 64-bit
+[tool.cibuildwheel.windows]
+archs = ["AMD64"]
+
+# Linux: x86_64 + aarch64 (ARM sunucular)
+[tool.cibuildwheel.linux]
+archs = ["x86_64", "aarch64"]

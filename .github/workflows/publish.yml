@@ -6,6 +6,9 @@ on:
       - "v*"
 
 jobs:
+  # ─────────────────────────────────────────────────────────────────
+  # Test on every supported Python version + Linux
+  # ─────────────────────────────────────────────────────────────────
   test:
     runs-on: ubuntu-latest
     strategy:
@@ -24,44 +27,95 @@ jobs:
           pip install pytest
       - run: python -m pytest tests/ -v
 
-  publish:
+  # ─────────────────────────────────────────────────────────────────
+  # Build wheels for every platform × Python version
+  # cibuildwheel handles manylinux Docker, macOS arm64, Windows MSVC
+  # ─────────────────────────────────────────────────────────────────
+  build-wheels:
     needs: test
+    name: Build wheels on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-13, macos-14]
+        # macos-13 = Intel, macos-14 = Apple Silicon (M1)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build wheels via cibuildwheel
+        uses: pypa/cibuildwheel@v2.21.3
+        # Tüm cibuildwheel ayarı pyproject.toml [tool.cibuildwheel]'de
+        env:
+          CIBW_ARCHS_LINUX: "auto aarch64"
+
+      - name: Upload wheel artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wheels-${{ matrix.os }}
+          path: ./wheelhouse/*.whl
+
+  # ─────────────────────────────────────────────────────────────────
+  # Build sdist (source distribution)
+  # ─────────────────────────────────────────────────────────────────
+  build-sdist:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build --sdist
+      - name: Upload sdist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: sdist
+          path: ./dist/*.tar.gz
+
+  # ─────────────────────────────────────────────────────────────────
+  # Publish all wheels + sdist to PyPI in one shot
+  # ─────────────────────────────────────────────────────────────────
+  publish:
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
     environment: pypi
     steps:
-      - uses: actions/checkout@v4
-
-      - uses: actions/setup-python@v5
+      - name: Download all wheel + sdist artifacts
+        uses: actions/download-artifact@v4
         with:
-          python-version: "3.12"
+          path: ./dist
+          merge-multiple: true
 
-      - name: Build sdist only (no platform-specific wheel)
-        # PyPI rejects linux_x86_64 wheels. We ship only the source
-        # distribution; users build Cython locally on install.
-        # For binary wheels, set up cibuildwheel with manylinux2014+ later.
-        run: |
-          python -m pip install --upgrade pip build
-          python -m build --sdist
+      - name: List artifacts
+        run: ls -la ./dist/
 
       - name: Publish to PyPI
         uses: pypa/gh-action-pypi-publish@release/v1
 
+  # ─────────────────────────────────────────────────────────────────
+  # GitHub Release with auto-generated notes
+  # ─────────────────────────────────────────────────────────────────
   github-release:
-    needs: test
+    needs: [build-wheels, build-sdist]
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
       - uses: actions/checkout@v4
-
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
 
-
+  # ─────────────────────────────────────────────────────────────────
+  # AUR publish (Arch Linux)
+  # ─────────────────────────────────────────────────────────────────
   aur-publish:
     needs: github-release
     runs-on: ubuntu-latest
@@ -78,7 +132,6 @@ jobs:
           mkdir -p ~/.ssh
           echo "$SSH_KEY" > ~/.ssh/aur
           chmod 600 ~/.ssh/aur
-          # Check key format validity locally
           ssh-keygen -y -f ~/.ssh/aur > /dev/null
 
       - name: Clone AUR Repo
@@ -90,23 +143,17 @@ jobs:
         run: |
           cd aur-repo
 
-          # Extract version from tag
           VERSION="${GITHUB_REF_NAME#v}"
-
-          # Get tarball hash
           TARBALL_URL="https://github.com/ozhangebesoglu/Kishi-Shell/archive/refs/tags/${GITHUB_REF_NAME}.tar.gz"
           TARBALL_HASH=$(curl -sL $TARBALL_URL | sha256sum | awk '{print $1}')
 
-          # Update PKGBUILD locally
           sed -i "s/^pkgver=.*/pkgver=$VERSION/" PKGBUILD
           sed -i "s/^pkgrel=.*/pkgrel=1/" PKGBUILD
           sed -i "s/^sha256sums=('.*')/sha256sums=('$TARBALL_HASH')/" PKGBUILD
 
-          # Setup builder user for makepkg
           useradd builder -m
           echo "builder ALL=(ALL) NOPASSWD: ALL" >> /etc/sudoers
 
-          # Pass the SSH key to builder user
           mkdir -p /home/builder/.ssh
           cp ~/.ssh/aur /home/builder/.ssh/aur
           chown -R builder:builder /home/builder/.ssh
@@ -114,14 +161,11 @@ jobs:
 
           chown -R builder:builder .
 
-          # Generate .SRCINFO as builder
           sudo -u builder makepkg --printsrcinfo > .SRCINFO
 
-          # Git operations as builder
           sudo -u builder git config user.name "github-actions[bot]"
           sudo -u builder git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           sudo -u builder git add PKGBUILD .SRCINFO
           sudo -u builder git commit -m "chore: Auto-update to ${GITHUB_REF_NAME}" || echo "No changes to commit"
 
-          # Force GIT_SSH_COMMAND natively for push
           sudo -u builder GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o PubkeyAcceptedKeyTypes=+ssh-ed25519 -i /home/builder/.ssh/aur" git push
