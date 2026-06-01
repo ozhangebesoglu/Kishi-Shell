@@ -248,21 +248,32 @@ def render_3d_scatter(query_vec, matches):
 def _resolve_model(files_or_dirs):
     """Verilen paths için kayıtlı LSA modeli varsa yükle (cache'le).
 
-    Lazy refresh: model'in auto_refresh_seconds'i set + stale ise
-    background subprocess ile --update-learn tetiklenir. Bu sorgu eski
-    modelle devam eder; sıradaki sorgu yeni modeli görür.
+    Cache key: (paths, model_file_mtime). Dosya değiştiyse (örn. background
+    refresh tamamlandı) cache invalid → reload.
+
+    Lazy refresh: stale ise background subprocess tetiklenir, bu sorgu eski
+    modelle devam, sıradaki sorgu yeni modeli görür.
     """
     if not LEARN_AVAILABLE or not files_or_dirs:
         return None
     real_paths = [p for p in files_or_dirs if p != "-" and os.path.exists(p)]
     if not real_paths:
         return None
-    cache_key = tuple(sorted(os.path.abspath(p) for p in real_paths))
+    paths_key = tuple(sorted(os.path.abspath(p) for p in real_paths))
+    # Model dosyasının current mtime'ı — değişirse cache invalid
+    model_dir = krep_learn.model_dir_for(list(real_paths))
+    meta_path = os.path.join(model_dir, "metadata.json")
+    try:
+        model_mtime = os.path.getmtime(meta_path)
+    except OSError:
+        model_mtime = 0.0
+    cache_key = (paths_key, model_mtime)
     if cache_key in _MODEL_CACHE:
-        return _MODEL_CACHE[cache_key]
-    m = krep_learn.find_model_for(list(real_paths))
-    _MODEL_CACHE[cache_key] = m
-    # Lazy auto-refresh tetikle (fire-and-forget)
+        m = _MODEL_CACHE[cache_key]
+    else:
+        m = krep_learn.find_model_for(list(real_paths))
+        _MODEL_CACHE[cache_key] = m
+    # Her resolve'da stale check — cache hit olsa bile background refresh
     if m is not None and krep_learn.is_stale(m):
         _trigger_background_refresh(real_paths)
     return m
