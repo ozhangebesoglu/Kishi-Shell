@@ -46,8 +46,8 @@ jobs:
       - name: Build wheels via cibuildwheel
         uses: pypa/cibuildwheel@v2.21.3
         # Tüm cibuildwheel ayarı pyproject.toml [tool.cibuildwheel]'de
-        env:
-          CIBW_ARCHS_LINUX: "auto aarch64"
+        # Not: ARM64 (aarch64) build'i QEMU üzerinden saatler sürüyordu;
+        # Linux ARM kullanıcıları sdist'ten gcc ile derlerler (~15 sn).
 
       - name: Upload wheel artifacts
         uses: actions/upload-artifact@v4

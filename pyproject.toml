@@ -92,6 +92,8 @@ archs = ["x86_64", "arm64"]
 [tool.cibuildwheel.windows]
 archs = ["AMD64"]
 
-# Linux: x86_64 + aarch64 (ARM sunucular)
+# Linux: yalnızca x86_64. ARM Linux kullanıcısı azdır (Raspberry Pi,
+# AWS Graviton). Onlarda gcc zaten standart olduğu için sdist'ten
+# ~15 saniyede derlerler. aarch64 QEMU build'i CI'da 5+ saat alıyordu.
 [tool.cibuildwheel.linux]
-archs = ["x86_64", "aarch64"]
+archs = ["x86_64"]
