@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.2.2)
+#  Kishi Shell (v2.0.2.3)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
@@ -300,7 +300,7 @@ Girdi → Lexer → Parser → Expander → Executor
 
 ---
 
-##  Krep AI — Semantik Arama (v2.0.2.2+)
+##  Krep AI — Semantik Arama (v2.0.2.3+)
 
 Krep, **3D semantik vektör arama** aracıdır. `grep`'in aksine **anlamı**
 yakalar: `"auth login"` aramasında `"password validated"`, `"token issued"`
@@ -310,13 +310,40 @@ Krep **hem** gömülü bir Kishi builtin'i **hem de** bağımsız bir CLI olarak
 gelir. `pip install kishi-shell` PATH'inize iki binary ekler: `kishi` ve `krep`.
 
 ```bash
-# Herhangi bir shell'den (bash, zsh, fish):
+# Herhangi bir shell'den (bash, zsh, fish, sh):
 $ krep "auth login" /var/log/
 $ krep --learn /var/log/ --auto-refresh 1h
 $ cat app.log | krep error
 
 # Kishi REPL içinden:
 Kishi$ -> krep "auth login" /var/log/
+```
+
+### v2.0.2.3'te yenilikler
+
+- **Sade çıktı** — tek satır header, sağa hizalı süre (ms), benzerliğe
+  göre renkli skorlar (yeşil/sarı/kırmızı), terminal genişliğine duyarlı.
+- **i18n (EN varsayılan, TR opsiyonel)** — `--lang en|tr` ile header,
+  hata mesajları ve scatter etiketleri çevrilir. Varsayılan İngilizce.
+- **Opt-in 3D scatter** — ASCII vektör grafiği artık varsayılan kapalı.
+  Göstermek için `--scatter` flag'i ver.
+- **Shell-bağımsız** — bash, zsh, fish ve POSIX sh'de doğrulandı.
+
+```text
+$ krep "auth login" /var/log/
+krep · 3 results · 'auth login' · keyword engine                            4 ms
+────────────────────────────────────────────────────────────────────────────────
+1.00  auth.log:4   login authorization required
+1.00  auth.log:6   login: success
+0.89  auth.log:1   auth login failed
+
+$ krep --lang tr "auth login" /var/log/
+krep · 3 sonuç · 'auth login' · anahtar kelime motoru                       4 ms
+────────────────────────────────────────────────────────────────────────────────
+1.00  auth.log:4   login authorization required
+...
+
+$ krep --scatter "auth login" /var/log/   # 3D ASCII grafiği de çizer
 ```
 
 ### İki motor, otomatik dispatch

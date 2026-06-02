@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.2.2)
+#  Kishi Shell (v2.0.2.3)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
@@ -300,7 +300,7 @@ Input → Lexer → Parser → Expander → Executor
 
 ---
 
-##  Krep AI — Semantic Search (v2.0.2.2+)
+##  Krep AI — Semantic Search (v2.0.2.3+)
 
 Krep is a **3D semantic vector search** tool. Unlike `grep`, it understands
 **meaning**: searching `"auth login"` also surfaces lines containing
@@ -310,13 +310,40 @@ Krep ships as **both** an embedded Kishi builtin **and** a standalone CLI.
 `pip install kishi-shell` adds two binaries to your PATH: `kishi` and `krep`.
 
 ```bash
-# From any shell (bash, zsh, fish):
+# From any shell (bash, zsh, fish, sh):
 $ krep "auth login" /var/log/
 $ krep --learn /var/log/ --auto-refresh 1h
 $ cat app.log | krep error
 
 # From inside Kishi REPL:
 Kishi$ -> krep "auth login" /var/log/
+```
+
+### What's new in v2.0.2.3
+
+- **Cleaner output** — single-line header with right-aligned elapsed time,
+  scores colored by similarity (green/yellow/red), terminal-width aware.
+- **i18n (EN default, TR optional)** — `--lang en|tr` switches header,
+  error messages, and scatter labels. Default is English.
+- **Opt-in 3D scatter** — the ASCII vector chart is now hidden by default.
+  Pass `--scatter` to render it.
+- **Shell-agnostic** — verified on bash, zsh, fish, and POSIX sh.
+
+```text
+$ krep "auth login" /var/log/
+krep · 3 results · 'auth login' · keyword engine                            4 ms
+────────────────────────────────────────────────────────────────────────────────
+1.00  auth.log:4   login authorization required
+1.00  auth.log:6   login: success
+0.89  auth.log:1   auth login failed
+
+$ krep --lang tr "auth login" /var/log/
+krep · 3 sonuç · 'auth login' · anahtar kelime motoru                       4 ms
+────────────────────────────────────────────────────────────────────────────────
+1.00  auth.log:4   login authorization required
+...
+
+$ krep --scatter "auth login" /var/log/   # also draws the 3D ASCII chart
 ```
 
 ### Two engines, automatic dispatch
