@@ -17,7 +17,6 @@ from prompt_toolkit.layout.containers import (
 from prompt_toolkit.layout.controls import FormattedTextControl, BufferControl
 from prompt_toolkit.layout.layout import Layout
 from prompt_toolkit.widgets import Frame
-from prompt_toolkit.styles import Style
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.layout.margins import ScrollbarMargin
 from prompt_toolkit.filters import has_focus, Condition
@@ -655,21 +654,10 @@ class DashboardUI:
         )
         self.layout = Layout(root, focused_element=self.in_win)
 
-        style = Style.from_dict({
-            "header": "bg:#dd4400 #ffffff bold",
-            "compact_bar": "bg:#333333 #aaaaaa",
-            "title": "ansicyan bold",
-            "label": "ansigreen bold",
-            "bg": "ansidarkgray",
-            "invalid": "ansired",
-            "input_frame": "ansiyellow bold",
-            "command.valid": "ansigreen bold",
-            "command.invalid": "ansired bold",
-            "string": "ansiyellow",
-            "variable": "ansicyan",
-            "operator": "ansimagenta",
-            "path.invalid": "ansired underline",
-        })
+        from kishi.themes import build_style
+        # Dashboard tüm 13 sınıfını tema paletinden alır — site-özel
+        # override yok. (Theme set ile değişir; restart gerekir.)
+        style = build_style()
 
         combined_kb = merge_key_bindings([self.kb, self.explorer.kb])
 

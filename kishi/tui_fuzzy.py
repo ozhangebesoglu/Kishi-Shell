@@ -4,7 +4,6 @@ from prompt_toolkit.layout.containers import Window, HSplit, VSplit
 from prompt_toolkit.layout.controls import FormattedTextControl, BufferControl
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.styles import Style
 import difflib
 
 def run_fuzzy_history(history_lines):
@@ -96,12 +95,10 @@ def run_fuzzy_history(history_lines):
         else:
             event.app.exit(result=None)
             
-    style = Style.from_dict({
+    from kishi.themes import build_style
+    # Fuzzy-özel amber header tema-dışı; geri kalan tema paletinden.
+    style = build_style(ui_overrides={
         "header": "bg:#ddaa00 #000000 bold",
-        "prompt": "ansicyan bold",
-        "selected": "bg:#0055aa #ffffff bold",
-        "line": "ansidarkgray",
-        "invalid": "ansired"
     })
     
     from kishi.state import get_cursor_shape

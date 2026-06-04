@@ -1,4 +1,4 @@
-#  Kishi Shell (v2.0.2.3)
+#  Kishi Shell (v2.0.2.4)
 
 [![CI](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml/badge.svg)](https://github.com/ozhangebesoglu/Kishi-Shell/actions/workflows/ci.yml)
 
@@ -318,6 +318,36 @@ $ cat app.log | krep error
 # Kishi REPL içinden:
 Kishi$ -> krep "auth login" /var/log/
 ```
+
+### v2.0.2.4'te yenilikler — Tema Sistemi
+
+Kishi artık **5 yerleşik renk teması** ile geliyor: Monokai (default),
+Dracula, One Dark, Solarized Dark, Solarized Light. Pygments style
+dashboard, editör, explorer ve REPL prompt'a merge edildi — editör'ün
+syntax highlighting'i nihayet **karanlık temada parlak ve okunabilir**.
+
+```bash
+# Tema seçici plugin'i yükle (bir kez)
+Kishi$ -> plugin install theme
+
+# Temaları listele
+Kishi$ -> theme
+Kishi Themes
+  - dracula
+  - monokai (active)
+  - one-dark
+  - solarized-dark
+  - solarized-light
+
+# Değiştir
+Kishi$ -> theme set dracula
+[+] Theme set to: dracula
+    Restart Kishi to apply (themes load at startup).
+```
+
+Seçim `~/.config/kishi/theme` dosyasına yazılır (veya
+`$XDG_CONFIG_HOME/kishi/theme`). Uygulanması için Kishi yeniden
+başlatılmalı — hot-reload desteklenmiyor.
 
 ### v2.0.2.3'te yenilikler
 

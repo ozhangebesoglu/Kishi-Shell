@@ -3,24 +3,18 @@ import subprocess
 from prompt_toolkit.formatted_text import ANSI
 from prompt_toolkit.completion import Completer, Completion
 from prompt_toolkit.lexers import Lexer
-from prompt_toolkit.styles import Style
 from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit import PromptSession
 from prompt_toolkit.history import FileHistory
 from prompt_toolkit.auto_suggest import AutoSuggestFromHistory
 
 from .state import COLOR_AMBER, COLOR_RESET, COLOR_RED, COLOR_YELLOW, COLOR_CYAN
+from .themes import build_style
 import kishi.state
 
-kishi_style = Style.from_dict({
-    'command.valid': 'ansigreen bold',
-    'command.invalid': 'ansired bold',
-    'string': 'ansiyellow',
-    'variable': 'ansicyan',
-    'operator': 'ansimagenta',
-    'path.invalid': 'ansired underline',
-    'bottom-toolbar': 'reverse'
-})
+# REPL prompt + lexer renkleri tema sisteminden gelir. bottom-toolbar
+# tema-bağımsız bir terminal davranış sınıfı olduğu için override edildi.
+kishi_style = build_style(ui_overrides={'bottom-toolbar': 'reverse'})
 
 class KishiLexer(Lexer):
     def lex_document(self, document):

@@ -4,7 +4,6 @@ from prompt_toolkit.key_binding import KeyBindings
 from prompt_toolkit.layout.containers import Window, VSplit, HSplit
 from prompt_toolkit.layout.controls import FormattedTextControl, BufferControl
 from prompt_toolkit.layout.layout import Layout
-from prompt_toolkit.styles import Style
 from prompt_toolkit.buffer import Buffer
 from prompt_toolkit.filters import has_focus
 from prompt_toolkit.document import Document
@@ -321,12 +320,12 @@ class ExplorerUI:
             if self.standalone:
                 event.app.exit()
 
-        style = Style.from_dict({
+        from kishi.themes import build_style
+        # Explorer-özel: yeşil header tasarım gereği tema-dışı tutuldu.
+        # Tema paletinden gelen title/selected/dir/line üzerine yazılır
+        # ve Pygments style editor syntax highlighting'ini parlatır.
+        style = build_style(ui_overrides={
             "header": "bg:#00aa00 #ffffff bold",
-            "title": "ansicyan bold",
-            "selected": "bg:#0055aa #ffffff bold",
-            "dir": "ansiblue bold",
-            "line": "ansidarkgray"
         })
 
         if self.standalone:
